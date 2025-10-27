@@ -11,6 +11,7 @@
         <h1>🚗 配送料金算出システム</h1>
         <div class="info-box">
             <p><strong>出発地：</strong>〒986-0814（宮城県石巻市南光町2丁目）</p>
+            <p class="notice"><strong>※ このシステムは宮城県内専用です</strong></p>
         </div>
 
         <div class="settings-section">
@@ -33,11 +34,17 @@
                     <input type="number" id="profitMargin" value="25" min="0" max="100" step="5">
                 </div>
             </div>
+            <div class="checkbox-section">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="useHighway" checked>
+                    <span>高速道路を使用する</span>
+                </label>
+            </div>
         </div>
 
         <div class="form-section">
-            <label for="destination">配送先郵便番号</label>
-            <input type="text" id="destination" placeholder="例: 100-0001" maxlength="8">
+            <label for="destination">配送先郵便番号（宮城県内）</label>
+            <input type="text" id="destination" placeholder="例: 980-0021（仙台市青葉区）" maxlength="8">
             <button id="calculateBtn" onclick="calculateDeliveryCost()">料金を計算</button>
         </div>
 
