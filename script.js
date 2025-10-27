@@ -1,13 +1,13 @@
 // 定数定義
 const ORIGIN_ZIPCODE = '986-0814';
 const NUM_WORKERS = 2;
-const FUEL_EFFICIENCY = 8; // km/L
 const HIGHWAY_COST_PER_KM = 24.6; // 円/km（普通車・ETC料金の概算）
 
 // 設定から値を取得する関数
 function getSettings() {
     return {
         gasPrice: parseFloat(document.getElementById('gasPrice').value) || 167,
+        fuelEfficiency: parseFloat(document.getElementById('fuelEfficiency').value) || 15,
         hourlyWage: parseFloat(document.getElementById('hourlyWage').value) || 1300,
         profitMargin: parseFloat(document.getElementById('profitMargin').value) || 25
     };
@@ -156,8 +156,8 @@ async function calculateDeliveryCost() {
         // 人件費 = 往復時間 × 時給 × 2人
         const laborCost = roundTripDuration * settings.hourlyWage * NUM_WORKERS;
         
-        // ガソリン代 = 往復距離 ÷ 8km/L × ガソリン単価（スタッフ車のみ）
-        const gasCost = (roundTripDistance / FUEL_EFFICIENCY) * settings.gasPrice;
+        // ガソリン代 = 往復距離 ÷ 燃費 × ガソリン単価（スタッフ車のみ）
+        const gasCost = (roundTripDistance / settings.fuelEfficiency) * settings.gasPrice;
         
         // 高速道路料金 = 片道料金 × 3（往路2台 + 復路1台）
         const oneWayHighwayCost = distance * HIGHWAY_COST_PER_KM;
@@ -213,9 +213,9 @@ function displayResult(data) {
     
     document.getElementById('gasCost').textContent = `¥${Math.round(data.gasCost).toLocaleString()}`;
     document.getElementById('gasFormula').textContent = 
-        `└ 往復距離 ÷ 8km/L × ¥${data.settings.gasPrice.toLocaleString()}/L`;
+        `└ 往復距離 ÷ ${data.settings.fuelEfficiency}km/L × ¥${data.settings.gasPrice.toLocaleString()}/L`;
     document.getElementById('gasDetail').textContent = 
-        `${data.roundTripDistance.toFixed(1)}km ÷ 8 × ¥${data.settings.gasPrice}`;
+        `${data.roundTripDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
     
     document.getElementById('highwayCost').textContent = `¥${Math.round(data.highwayCost).toLocaleString()}`;
     document.getElementById('highwayDetail').textContent = 
