@@ -54,6 +54,30 @@ h3 {
     font-size: 1.1em;
 }
 
+.settings-section {
+    background: #f0f4ff;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+    border: 2px solid #667eea;
+}
+
+.settings-section h2 {
+    margin-bottom: 20px;
+    font-size: 1.3em;
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.setting-item {
+    display: flex;
+    flex-direction: column;
+}
+
 .form-section {
     margin-bottom: 30px;
 }
@@ -66,7 +90,8 @@ label {
     font-size: 1.1em;
 }
 
-input[type="text"] {
+input[type="text"],
+input[type="number"] {
     width: 100%;
     padding: 15px;
     font-size: 1.1em;
@@ -76,7 +101,8 @@ input[type="text"] {
     margin-bottom: 15px;
 }
 
-input[type="text"]:focus {
+input[type="text"]:focus,
+input[type="number"]:focus {
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -172,6 +198,26 @@ button:disabled {
     font-weight: normal;
 }
 
+.result-item.subtotal {
+    margin-top: 10px;
+    padding-top: 20px;
+    border-top: 2px solid #667eea;
+    font-size: 1.1em;
+}
+
+.result-item.subtotal span {
+    font-weight: bold;
+}
+
+.profit-section {
+    background: #e8f5e9;
+    border: 2px solid #4caf50;
+}
+
+.profit-section h3 {
+    border-left-color: #4caf50;
+}
+
 .total-section {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     padding: 30px;
@@ -192,6 +238,12 @@ button:disabled {
     font-size: 2.5em;
     font-weight: bold;
     margin-top: 10px;
+}
+
+.total-formula {
+    font-size: 0.9em;
+    margin-top: 10px;
+    opacity: 0.9;
 }
 
 .note {

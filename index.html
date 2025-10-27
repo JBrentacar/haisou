@@ -13,6 +13,24 @@
             <p><strong>出発地：</strong>〒986-0814（宮城県石巻市南光町2丁目）</p>
         </div>
 
+        <div class="settings-section">
+            <h2>⚙️ 設定</h2>
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label for="gasPrice">ガソリン単価（円/L）</label>
+                    <input type="number" id="gasPrice" value="167" min="100" max="300" step="1">
+                </div>
+                <div class="setting-item">
+                    <label for="hourlyWage">時給（円/時）</label>
+                    <input type="number" id="hourlyWage" value="1300" min="1000" max="5000" step="100">
+                </div>
+                <div class="setting-item">
+                    <label for="profitMargin">利益率（%）</label>
+                    <input type="number" id="profitMargin" value="25" min="0" max="100" step="5">
+                </div>
+            </div>
+        </div>
+
         <div class="form-section">
             <label for="destination">配送先郵便番号</label>
             <input type="text" id="destination" placeholder="例: 100-0001" maxlength="8">
@@ -44,13 +62,13 @@
             </div>
 
             <div class="result-section">
-                <h3>💵 費用内訳</h3>
+                <h3>💵 直接経費</h3>
                 <div class="result-item">
                     <span>人件費（往復）：</span>
                     <span id="laborCost"></span>
                 </div>
                 <div class="result-item detail">
-                    <span>└ 往復時間 × 2,400円/時 × 2人</span>
+                    <span id="laborFormula">└ 往復時間 × 時給 × 2人</span>
                     <span id="laborDetail"></span>
                 </div>
                 
@@ -59,7 +77,7 @@
                     <span id="gasCost"></span>
                 </div>
                 <div class="result-item detail">
-                    <span>└ 往復距離 ÷ 8km/L × 180円/L</span>
+                    <span id="gasFormula">└ 往復距離 ÷ 8km/L × ガソリン単価</span>
                     <span id="gasDetail"></span>
                 </div>
                 
@@ -71,11 +89,25 @@
                     <span>└ 往路2台分 + 復路1台分</span>
                     <span id="highwayDetail"></span>
                 </div>
+
+                <div class="result-item subtotal">
+                    <span><strong>直接経費 小計：</strong></span>
+                    <span id="directCost"></span>
+                </div>
+            </div>
+
+            <div class="result-section profit-section">
+                <h3>💰 利益</h3>
+                <div class="result-item">
+                    <span id="profitLabel">利益（直接経費の25%）：</span>
+                    <span id="profitAmount"></span>
+                </div>
             </div>
 
             <div class="total-section">
                 <h3>合計配送料金</h3>
                 <div class="total-amount" id="totalCost"></div>
+                <div class="total-formula" id="totalFormula">(直接経費 + 利益)</div>
             </div>
 
             <div class="note">

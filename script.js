@@ -1,10 +1,17 @@
 // 定数定義
 const ORIGIN_ZIPCODE = '986-0814';
-const LABOR_COST_PER_HOUR = 2400;
 const NUM_WORKERS = 2;
 const FUEL_EFFICIENCY = 8; // km/L
-const GAS_PRICE = 180; // 円/L
 const HIGHWAY_COST_PER_KM = 24.6; // 円/km（普通車・ETC料金の概算）
+
+// 設定から値を取得する関数
+function getSettings() {
+    return {
+        gasPrice: parseFloat(document.getElementById('gasPrice').value) || 167,
+        hourlyWage: parseFloat(document.getElementById('hourlyWage').value) || 1300,
+        profitMargin: parseFloat(document.getElementById('profitMargin').value) || 25
+    };
+}
 
 // 郵便番号から住所を取得
 async function getAddressFromZipcode(zipcode) {
@@ -132,6 +139,9 @@ async function calculateDeliveryCost() {
     calculateBtn.disabled = true;
     
     try {
+        // 0. 設定を取得
+        const settings = getSettings();
+        
         // 1. 住所を取得
         const originAddress = '宮城県石巻市南光町2丁目';
         const destAddress = await getAddressFromZipcode(destinationZipcode);
@@ -143,18 +153,24 @@ async function calculateDeliveryCost() {
         const roundTripDistance = distance * 2; // 往復距離
         const roundTripDuration = duration * 2; // 往復時間
         
-        // 人件費 = 往復時間 × 2400円/時 × 2人
-        const laborCost = roundTripDuration * LABOR_COST_PER_HOUR * NUM_WORKERS;
+        // 人件費 = 往復時間 × 時給 × 2人
+        const laborCost = roundTripDuration * settings.hourlyWage * NUM_WORKERS;
         
-        // ガソリン代 = 往復距離 ÷ 8km/L × 180円/L（スタッフ車のみ）
-        const gasCost = (roundTripDistance / FUEL_EFFICIENCY) * GAS_PRICE;
+        // ガソリン代 = 往復距離 ÷ 8km/L × ガソリン単価（スタッフ車のみ）
+        const gasCost = (roundTripDistance / FUEL_EFFICIENCY) * settings.gasPrice;
         
         // 高速道路料金 = 片道料金 × 3（往路2台 + 復路1台）
         const oneWayHighwayCost = distance * HIGHWAY_COST_PER_KM;
         const highwayCost = oneWayHighwayCost * 3;
         
-        // 合計
-        const totalCost = laborCost + gasCost + highwayCost;
+        // 直接経費の合計
+        const directCost = laborCost + gasCost + highwayCost;
+        
+        // 利益 = 直接経費 × 利益率
+        const profit = directCost * (settings.profitMargin / 100);
+        
+        // 最終的な配送料金
+        const totalCost = directCost + profit;
         
         // 結果を表示
         displayResult({
@@ -167,7 +183,10 @@ async function calculateDeliveryCost() {
             gasCost,
             highwayCost,
             oneWayHighwayCost,
-            totalCost
+            directCost,
+            profit,
+            totalCost,
+            settings
         });
         
     } catch (error) {
@@ -180,23 +199,39 @@ async function calculateDeliveryCost() {
 
 // 結果を表示
 function displayResult(data) {
+    // ルート情報
     document.getElementById('destAddress').textContent = data.destAddress;
     document.getElementById('distance').textContent = `${data.distance.toFixed(1)} km`;
     document.getElementById('duration').textContent = `${data.duration.toFixed(1)} 時間`;
     
+    // 直接経費
     document.getElementById('laborCost').textContent = `¥${Math.round(data.laborCost).toLocaleString()}`;
+    document.getElementById('laborFormula').textContent = 
+        `└ 往復時間 × ¥${data.settings.hourlyWage.toLocaleString()}/時 × 2人`;
     document.getElementById('laborDetail').textContent = 
-        `${data.roundTripDuration.toFixed(1)}h × ¥2,400 × 2人`;
+        `${data.roundTripDuration.toFixed(1)}h × ¥${data.settings.hourlyWage.toLocaleString()} × 2人`;
     
     document.getElementById('gasCost').textContent = `¥${Math.round(data.gasCost).toLocaleString()}`;
+    document.getElementById('gasFormula').textContent = 
+        `└ 往復距離 ÷ 8km/L × ¥${data.settings.gasPrice.toLocaleString()}/L`;
     document.getElementById('gasDetail').textContent = 
-        `${data.roundTripDistance.toFixed(1)}km ÷ 8 × ¥180`;
+        `${data.roundTripDistance.toFixed(1)}km ÷ 8 × ¥${data.settings.gasPrice}`;
     
     document.getElementById('highwayCost').textContent = `¥${Math.round(data.highwayCost).toLocaleString()}`;
     document.getElementById('highwayDetail').textContent = 
         `¥${Math.round(data.oneWayHighwayCost).toLocaleString()} × 3`;
     
+    document.getElementById('directCost').textContent = `¥${Math.round(data.directCost).toLocaleString()}`;
+    
+    // 利益
+    document.getElementById('profitLabel').textContent = 
+        `利益（直接経費の${data.settings.profitMargin}%）：`;
+    document.getElementById('profitAmount').textContent = `¥${Math.round(data.profit).toLocaleString()}`;
+    
+    // 合計
     document.getElementById('totalCost').textContent = `¥${Math.round(data.totalCost).toLocaleString()}`;
+    document.getElementById('totalFormula').textContent = 
+        `(直接経費 ¥${Math.round(data.directCost).toLocaleString()} + 利益 ¥${Math.round(data.profit).toLocaleString()})`;
     
     document.getElementById('result').style.display = 'block';
 }
