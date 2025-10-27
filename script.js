@@ -1,7 +1,59 @@
 // 定数定義
 const ORIGIN_ZIPCODE = '986-0814';
+const ORIGIN_IC = '石巻河南'; // 出発IC（固定）
 const NUM_WORKERS = 2;
 const HIGHWAY_COST_PER_KM = 24.6; // 円/km（普通車・ETC料金の概算）
+
+// 都道府県別の主要ICマッピング
+const PREFECTURE_IC_MAP = {
+    '北海道': '札幌',
+    '青森県': '青森',
+    '岩手県': '盛岡',
+    '宮城県': '仙台宮城',
+    '秋田県': '秋田中央',
+    '山形県': '山形',
+    '福島県': '福島西',
+    '茨城県': '水戸',
+    '栃木県': '宇都宮',
+    '群馬県': '前橋',
+    '埼玉県': '浦和',
+    '千葉県': '千葉',
+    '東京都': '東京',
+    '神奈川県': '横浜',
+    '新潟県': '新潟中央',
+    '富山県': '富山',
+    '石川県': '金沢西',
+    '福井県': '福井',
+    '山梨県': '甲府昭和',
+    '長野県': '長野',
+    '岐阜県': '岐阜羽島',
+    '静岡県': '静岡',
+    '愛知県': '名古屋',
+    '三重県': '四日市',
+    '滋賀県': '草津田上',
+    '京都府': '京都南',
+    '大阪府': '吹田',
+    '兵庫県': '神戸',
+    '奈良県': '天理',
+    '和歌山県': '和歌山',
+    '鳥取県': '鳥取',
+    '島根県': '松江',
+    '岡山県': '岡山',
+    '広島県': '広島',
+    '山口県': '山口',
+    '徳島県': '徳島',
+    '香川県': '高松中央',
+    '愛媛県': '松山',
+    '高知県': '高知',
+    '福岡県': '福岡',
+    '佐賀県': '佐賀大和',
+    '長崎県': '長崎多良見',
+    '熊本県': '熊本',
+    '大分県': '大分',
+    '宮崎県': '宮崎',
+    '鹿児島県': '鹿児島',
+    '沖縄県': '那覇'
+};
 
 // 設定から値を取得する関数
 function getSettings() {
@@ -25,13 +77,40 @@ async function getAddressFromZipcode(zipcode) {
         
         if (data.status === 200 && data.results) {
             const result = data.results[0];
-            return `${result.address1}${result.address2}${result.address3}`;
+            const address = `${result.address1}${result.address2}${result.address3}`;
+            const prefecture = result.address1;
+            return { address, prefecture };
         } else {
             throw new Error('郵便番号が見つかりませんでした');
         }
     } catch (error) {
         throw new Error('郵便番号の検索に失敗しました: ' + error.message);
     }
+}
+
+// 都道府県から最寄りのICを取得
+function getNearestIC(prefecture) {
+    return PREFECTURE_IC_MAP[prefecture] || '東京';
+}
+
+// ドラぷらの料金検索URLを生成
+function generateDrivePlazaURL(destinationIC) {
+    const now = new Date();
+    const params = new URLSearchParams({
+        startPlaceKana: ORIGIN_IC,
+        arrivePlaceKana: destinationIC,
+        searchHour: '12',
+        searchMinute: '00',
+        kind: '1',          // 1: 料金優先
+        carType: '1',       // 1: 軽自動車等・普通車
+        priority: '2',      // 2: ETC
+        searchYear: now.getFullYear().toString(),
+        searchMonth: (now.getMonth() + 1).toString(),
+        searchDay: now.getDate().toString(),
+        selectickindflg: '0'
+    });
+    
+    return `https://www.driveplaza.com/dp/SearchQuick?${params.toString()}`;
 }
 
 // 距離と時間を計算（Google Maps APIの代わりに概算計算を使用）
@@ -144,7 +223,11 @@ async function calculateDeliveryCost() {
         
         // 1. 住所を取得
         const originAddress = '宮城県石巻市南光町2丁目';
-        const destAddress = await getAddressFromZipcode(destinationZipcode);
+        const { address: destAddress, prefecture } = await getAddressFromZipcode(destinationZipcode);
+        
+        // 1.5. 最寄りのICとドラぷらURLを生成
+        const destinationIC = getNearestIC(prefecture);
+        const drivePlazaURL = generateDrivePlazaURL(destinationIC);
         
         // 2. 距離と時間を計算
         const { distance, duration } = await calculateDistanceAndTime(originAddress, destAddress);
@@ -175,6 +258,9 @@ async function calculateDeliveryCost() {
         // 結果を表示
         displayResult({
             destAddress,
+            prefecture,
+            destinationIC,
+            drivePlazaURL,
             distance,
             duration,
             roundTripDistance,
@@ -201,8 +287,13 @@ async function calculateDeliveryCost() {
 function displayResult(data) {
     // ルート情報
     document.getElementById('destAddress').textContent = data.destAddress;
+    document.getElementById('destinationIC').textContent = `${data.destinationIC}IC（${data.prefecture}）`;
     document.getElementById('distance').textContent = `${data.distance.toFixed(1)} km`;
     document.getElementById('duration').textContent = `${data.duration.toFixed(1)} 時間`;
+    
+    // ドラぷらリンクを設定
+    const highwayLink = document.getElementById('highwayLink');
+    highwayLink.href = data.drivePlazaURL;
     
     // 直接経費
     document.getElementById('laborCost').textContent = `¥${Math.round(data.laborCost).toLocaleString()}`;
