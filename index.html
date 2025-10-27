@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>配送料金算出システム</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🚗 配送料金算出システム</h1>
+        <div class="info-box">
+            <p><strong>出発地：</strong>〒986-0814（宮城県石巻市南光町2丁目）</p>
+        </div>
+
+        <div class="form-section">
+            <label for="destination">配送先郵便番号</label>
+            <input type="text" id="destination" placeholder="例: 100-0001" maxlength="8">
+            <button id="calculateBtn" onclick="calculateDeliveryCost()">料金を計算</button>
+        </div>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>計算中...</p>
+        </div>
+
+        <div id="result" class="result" style="display: none;">
+            <h2>💰 配送料金の内訳</h2>
+            
+            <div class="result-section">
+                <h3>📍 ルート情報</h3>
+                <div class="result-item">
+                    <span>配送先住所：</span>
+                    <span id="destAddress"></span>
+                </div>
+                <div class="result-item">
+                    <span>片道距離：</span>
+                    <span id="distance"></span>
+                </div>
+                <div class="result-item">
+                    <span>片道所要時間：</span>
+                    <span id="duration"></span>
+                </div>
+            </div>
+
+            <div class="result-section">
+                <h3>💵 費用内訳</h3>
+                <div class="result-item">
+                    <span>人件費（往復）：</span>
+                    <span id="laborCost"></span>
+                </div>
+                <div class="result-item detail">
+                    <span>└ 往復時間 × 2,400円/時 × 2人</span>
+                    <span id="laborDetail"></span>
+                </div>
+                
+                <div class="result-item">
+                    <span>ガソリン代（往復・スタッフ車のみ）：</span>
+                    <span id="gasCost"></span>
+                </div>
+                <div class="result-item detail">
+                    <span>└ 往復距離 ÷ 8km/L × 180円/L</span>
+                    <span id="gasDetail"></span>
+                </div>
+                
+                <div class="result-item">
+                    <span>高速道路料金：</span>
+                    <span id="highwayCost"></span>
+                </div>
+                <div class="result-item detail">
+                    <span>└ 往路2台分 + 復路1台分</span>
+                    <span id="highwayDetail"></span>
+                </div>
+            </div>
+
+            <div class="total-section">
+                <h3>合計配送料金</h3>
+                <div class="total-amount" id="totalCost"></div>
+            </div>
+
+            <div class="note">
+                <p><strong>※ 注意事項</strong></p>
+                <ul>
+                    <li>高速道路料金は普通車・ETC料金で計算しています（概算）</li>
+                    <li>実際の料金は交通状況や時間帯により変動する可能性があります</li>
+                    <li>有料道路料金も含まれています</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
