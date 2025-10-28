@@ -23,8 +23,42 @@ body {
 h1 {
     text-align: center;
     color: #333;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     font-size: 2em;
+}
+
+/* モード切り替えタブ */
+.mode-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    justify-content: center;
+}
+
+.mode-tab {
+    flex: 1;
+    max-width: 250px;
+    padding: 15px 30px;
+    font-size: 1.1em;
+    font-weight: bold;
+    border: 3px solid #667eea;
+    background: white;
+    color: #667eea;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.mode-tab:hover {
+    background: #f0f4ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.mode-tab.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
 }
 
 h2 {

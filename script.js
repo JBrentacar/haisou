@@ -5,6 +5,9 @@ const ORIGIN_IC = '石巻河南'; // 出発IC（固定）
 const NUM_WORKERS = 2;
 const HIGHWAY_COST_PER_KM = 24.6; // 円/km（普通車・ETC料金の概算）
 
+// 現在のモード（'delivery' or 'pickup'）
+let currentMode = 'delivery';
+
 // 宮城県内の市区町村とICのマッピング
 const MIYAGI_IC_MAP = {
     // 仙台市
@@ -73,6 +76,33 @@ const MIYAGI_IC_MAP = {
     '本吉町': '気仙沼鹿折金山'
 };
 
+// モード切り替え関数
+function switchMode(mode) {
+    currentMode = mode;
+    
+    // タブのアクティブ状態を切り替え
+    document.querySelectorAll('.mode-tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.mode === mode) {
+            tab.classList.add('active');
+        }
+    });
+    
+    // ラベル表示を切り替え
+    const destinationLabel = document.getElementById('destinationLabel');
+    if (mode === 'delivery') {
+        destinationLabel.textContent = '配送先郵便番号（宮城県内）';
+    } else {
+        destinationLabel.textContent = '回収先郵便番号（宮城県内）';
+    }
+    
+    // 結果が表示されている場合は再計算
+    const resultDiv = document.getElementById('result');
+    if (resultDiv.style.display !== 'none') {
+        calculateCost();
+    }
+}
+
 // 設定から値を取得する関数
 function getSettings() {
     return {
@@ -80,7 +110,8 @@ function getSettings() {
         fuelEfficiency: parseFloat(document.getElementById('fuelEfficiency').value) || 15,
         hourlyWage: parseFloat(document.getElementById('hourlyWage').value) || 1300,
         profitMargin: parseFloat(document.getElementById('profitMargin').value) || 25,
-        useHighway: document.getElementById('useHighway').checked
+        useHighway: document.getElementById('useHighway').checked,
+        mode: currentMode
     };
 }
 
@@ -315,6 +346,36 @@ async function calculateDistanceAndTime(originZipcode, destZipcode, useHighway) 
     }
 }
 
+// 料金計算（配送・回収共通）
+async function calculateCost() {
+    const destinationZipcode = document.getElementById('destination').value.trim();
+    const resultDiv = document.getElementById('result');
+    const errorDiv = document.getElementById('error');
+    const loadingDiv = document.getElementById('loading');
+    const calculateBtn = document.getElementById('calculateBtn');
+    
+    // 入力チェック
+    if (!destinationZipcode) {
+        const modeText = currentMode === 'delivery' ? '配送先' : '回収先';
+        showError(`${modeText}の郵便番号を入力してください`);
+        return;
+    }
+    
+    // 郵便番号の形式チェック
+    const zipcodePattern = /^\d{3}-?\d{4}$/;
+    if (!zipcodePattern.test(destinationZipcode)) {
+        showError('正しい郵便番号の形式で入力してください（例: 100-0001）');
+        return;
+    }
+    
+    // モードに応じて適切な関数を呼び出す
+    if (currentMode === 'delivery') {
+        return calculateDeliveryCost();
+    } else {
+        return calculatePickupCost();
+    }
+}
+
 // 配送料金を計算
 async function calculateDeliveryCost() {
     const destinationZipcode = document.getElementById('destination').value.trim();
@@ -464,6 +525,116 @@ async function calculateDeliveryCost() {
     }
 }
 
+// 回収料金を計算
+async function calculatePickupCost() {
+    const destinationZipcode = document.getElementById('destination').value.trim();
+    const resultDiv = document.getElementById('result');
+    const errorDiv = document.getElementById('error');
+    const loadingDiv = document.getElementById('loading');
+    const calculateBtn = document.getElementById('calculateBtn');
+    
+    // UI更新
+    resultDiv.style.display = 'none';
+    errorDiv.style.display = 'none';
+    loadingDiv.style.display = 'block';
+    calculateBtn.disabled = true;
+    
+    try {
+        // 0. 設定を取得
+        const settings = getSettings();
+        
+        // 2. 配送先の住所を郵便番号から取得
+        const zipcodeData = await getAddressFromZipcode(destinationZipcode);
+        
+        // 2.5. 宮城県内かチェック
+        if (zipcodeData.prefecture !== '宮城県') {
+            showError('このシステムは宮城県内専用です。宮城県内の郵便番号を入力してください。');
+            return;
+        }
+        
+        const destAddress = zipcodeData.address;
+        const city = zipcodeData.city;
+        
+        // 4. 最寄りのICとドラぷらURLを生成
+        const destinationIC = getNearestIC(city);
+        const drivePlazaURL = generateDrivePlazaURL(destinationIC);
+        
+        // 5. 距離と時間を計算
+        const { distance, duration, distanceText, durationText, tollFee } = await calculateDistanceAndTime(
+            ORIGIN_ZIPCODE, 
+            destinationZipcode, 
+            settings.useHighway
+        );
+        
+        // 各費用を計算
+        const roundTripDistance = distance * 2; // 往復距離
+        const oneWayDistance = distance; // 片道距離
+        const roundTripDuration = duration * 2; // 往復時間
+        
+        // 人件費 = 往復時間 × 時給 × 2人（配送と同じ）
+        const laborCost = roundTripDuration * settings.hourlyWage * NUM_WORKERS;
+        
+        // ガソリン代（スタッフ車往復 + レンタカー復路）
+        const staffGasCost = (roundTripDistance / settings.fuelEfficiency) * settings.gasPrice;
+        const rentalGasCost = (oneWayDistance / settings.fuelEfficiency) * settings.gasPrice;
+        const gasCost = staffGasCost + rentalGasCost;
+        
+        // 高速道路料金（配送と同じ）
+        let oneWayHighwayCost = 0;
+        let highwayCost = 0;
+        
+        if (settings.useHighway) {
+            if (tollFee !== null && tollFee > 0) {
+                oneWayHighwayCost = tollFee;
+                highwayCost = tollFee * 3; // 往路2台分 + 復路1台分
+            } else {
+                oneWayHighwayCost = distance * HIGHWAY_COST_PER_KM;
+                highwayCost = oneWayHighwayCost * 3;
+            }
+        }
+        
+        // 直接経費の合計
+        const directCost = laborCost + gasCost + highwayCost;
+        
+        // 利益 = 直接経費 × 利益率
+        const profit = directCost * (settings.profitMargin / 100);
+        
+        // 最終的な回収料金
+        const totalCost = directCost + profit;
+        
+        // 結果を表示
+        displayResult({
+            destAddress,
+            city,
+            destinationIC,
+            drivePlazaURL,
+            distance,
+            duration,
+            distanceText,
+            durationText,
+            roundTripDistance,
+            roundTripDuration,
+            laborCost,
+            gasCost,
+            staffGasCost,
+            rentalGasCost,
+            oneWayDistance,
+            highwayCost,
+            oneWayHighwayCost,
+            directCost,
+            profit,
+            totalCost,
+            settings
+        });
+        
+    } catch (error) {
+        showError(error.message);
+    } finally {
+        loadingDiv.style.display = 'none';
+        calculateBtn.disabled = false;
+    }
+}
+
 // 結果を表示
 function displayResult(data) {
     // ルート情報
@@ -491,11 +662,35 @@ function displayResult(data) {
     document.getElementById('laborDetail').textContent = 
         `${data.roundTripDuration.toFixed(1)}h × ¥${data.settings.hourlyWage.toLocaleString()} × 2人`;
     
-    document.getElementById('gasCost').textContent = `¥${Math.round(data.gasCost).toLocaleString()}`;
-    document.getElementById('gasFormula').textContent = 
-        `└ 往復距離 ÷ ${data.settings.fuelEfficiency}km/L × ¥${data.settings.gasPrice.toLocaleString()}/L`;
-    document.getElementById('gasDetail').textContent = 
-        `${data.roundTripDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
+    // ガソリン代の表示（モードによって変更）
+    if (data.settings.mode === 'pickup') {
+        // 回収モード：スタッフ車 + レンタカー復路
+        document.getElementById('gasCostLabel').textContent = 'ガソリン代（スタッフ車往復）：';
+        document.getElementById('gasCost').textContent = `¥${Math.round(data.staffGasCost).toLocaleString()}`;
+        document.getElementById('gasFormula').textContent = 
+            `└ 往復距離 ÷ ${data.settings.fuelEfficiency}km/L × ¥${data.settings.gasPrice.toLocaleString()}/L`;
+        document.getElementById('gasDetail').textContent = 
+            `${data.roundTripDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
+        
+        // レンタカー復路分を表示
+        document.getElementById('rentalGasRow').style.display = 'flex';
+        document.getElementById('rentalGasDetailRow').style.display = 'flex';
+        document.getElementById('rentalGasCost').textContent = `¥${Math.round(data.rentalGasCost).toLocaleString()}`;
+        document.getElementById('rentalGasDetail').textContent = 
+            `${data.oneWayDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
+    } else {
+        // 配送モード：スタッフ車のみ
+        document.getElementById('gasCostLabel').textContent = 'ガソリン代（往復・スタッフ車のみ）：';
+        document.getElementById('gasCost').textContent = `¥${Math.round(data.gasCost).toLocaleString()}`;
+        document.getElementById('gasFormula').textContent = 
+            `└ 往復距離 ÷ ${data.settings.fuelEfficiency}km/L × ¥${data.settings.gasPrice.toLocaleString()}/L`;
+        document.getElementById('gasDetail').textContent = 
+            `${data.roundTripDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
+        
+        // レンタカー復路分を非表示
+        document.getElementById('rentalGasRow').style.display = 'none';
+        document.getElementById('rentalGasDetailRow').style.display = 'none';
+    }
     
     // 高速道路料金の表示（概算）
     if (data.settings.useHighway) {
@@ -534,7 +729,7 @@ function showError(message) {
 document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('destination').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
-            calculateDeliveryCost();
+            calculateCost();
         }
     });
 });

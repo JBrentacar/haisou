@@ -8,7 +8,18 @@
 </head>
 <body>
     <div class="container">
-        <h1>🚗 配送料金算出システム</h1>
+        <h1>🚗 配送・回収料金算出システム</h1>
+        
+        <!-- モード切り替えタブ -->
+        <div class="mode-tabs">
+            <button class="mode-tab active" data-mode="delivery" onclick="switchMode('delivery')">
+                📦 配送モード
+            </button>
+            <button class="mode-tab" data-mode="pickup" onclick="switchMode('pickup')">
+                🔄 回収モード
+            </button>
+        </div>
+        
         <div class="info-box">
             <p><strong>出発地：</strong>〒986-0814（宮城県石巻市南中里2丁目9-27）</p>
             <p class="notice"><strong>※ このシステムは宮城県内専用です</strong></p>
@@ -43,9 +54,9 @@
         </div>
 
         <div class="form-section">
-            <label for="destination">配送先郵便番号（宮城県内）</label>
+            <label for="destination" id="destinationLabel">配送先郵便番号（宮城県内）</label>
             <input type="text" id="destination" placeholder="例: 980-0021（仙台市青葉区）" maxlength="8">
-            <button id="calculateBtn" onclick="calculateDeliveryCost()">料金を計算</button>
+            <button id="calculateBtn" onclick="calculateCost()">料金を計算</button>
         </div>
 
         <div id="loading" class="loading" style="display: none;">
@@ -88,12 +99,20 @@
                 </div>
                 
                 <div class="result-item">
-                    <span>ガソリン代（往復・スタッフ車のみ）：</span>
+                    <span id="gasCostLabel">ガソリン代（往復・スタッフ車のみ）：</span>
                     <span id="gasCost"></span>
                 </div>
                 <div class="result-item detail">
                     <span id="gasFormula">└ 往復距離 ÷ 燃費 × ガソリン単価</span>
                     <span id="gasDetail"></span>
+                </div>
+                <div class="result-item" id="rentalGasRow" style="display: none;">
+                    <span>ガソリン代（レンタカー復路分）：</span>
+                    <span id="rentalGasCost"></span>
+                </div>
+                <div class="result-item detail" id="rentalGasDetailRow" style="display: none;">
+                    <span>└ 復路距離 ÷ 燃費 × ガソリン単価</span>
+                    <span id="rentalGasDetail"></span>
                 </div>
                 
                 <div class="result-item">
