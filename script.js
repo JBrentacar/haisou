@@ -188,61 +188,131 @@ function generateDrivePlazaURL(destinationIC) {
     return `https://www.driveplaza.com/dp/SearchQuick?${params.toString()}`;
 }
 
-// Google Maps Distance Matrix APIを使用して距離・時間を計算（高速・信頼性重視）
-async function calculateDistanceAndTime(originAddress, destAddress, useHighway) {
-    return new Promise((resolve, reject) => {
-        const service = new google.maps.DistanceMatrixService();
+// 2地点間の座標を取得（郵便番号から）
+async function getCoordinatesFromZipcode(zipcode) {
+    const cleanZipcode = zipcode.replace(/-/g, '');
+    
+    try {
+        // zipcloud APIで住所取得
+        const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleanZipcode}`);
+        const data = await response.json();
         
-        console.log('=== Google Maps Distance Matrix API リクエスト ===');
-        console.log('Origin:', originAddress);
-        console.log('Destination:', destAddress);
+        if (data.status === 200 && data.results) {
+            const result = data.results[0];
+            const address = `${result.address1}${result.address2}${result.address3}`;
+            
+            // OpenStreetMap Nominatim APIで座標取得（無料、APIキー不要）
+            const geoResponse = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Japan')}&limit=1`,
+                {
+                    headers: {
+                        'User-Agent': 'DeliveryCostCalculator/1.0'
+                    }
+                }
+            );
+            const geoData = await geoResponse.json();
+            
+            if (geoData && geoData.length > 0) {
+                return {
+                    lat: parseFloat(geoData[0].lat),
+                    lng: parseFloat(geoData[0].lon),
+                    address: address
+                };
+            } else {
+                throw new Error('座標の取得に失敗しました');
+            }
+        } else {
+            throw new Error('郵便番号が見つかりませんでした');
+        }
+    } catch (error) {
+        throw new Error('座標取得エラー: ' + error.message);
+    }
+}
+
+// Haversine公式で2地点間の直線距離を計算（km）
+function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371; // 地球の半径（km）
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+    
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c;
+    
+    return distance;
+}
+
+function toRadians(degrees) {
+    return degrees * (Math.PI / 180);
+}
+
+// 距離と時間を計算（APIキー不要版）
+async function calculateDistanceAndTime(originZipcode, destZipcode, useHighway) {
+    try {
+        console.log('=== 距離・時間計算（APIキー不要版）===');
+        console.log('Origin Zipcode:', originZipcode);
+        console.log('Destination Zipcode:', destZipcode);
         console.log('Use Highway:', useHighway);
         
-        const request = {
-            origins: [originAddress],
-            destinations: [destAddress],
-            travelMode: 'DRIVING',
-            avoidHighways: !useHighway,
-            avoidTolls: !useHighway,
-            unitSystem: google.maps.UnitSystem.METRIC,
-            region: 'JP'
+        // 固定の出発地座標（石巻市南中里2丁目9-27）
+        const originCoords = {
+            lat: 38.4347,
+            lng: 141.3030,
+            address: '宮城県石巻市南中里2丁目9-27'
         };
         
-        service.getDistanceMatrix(request, (response, status) => {
-            console.log('=== Distance Matrix API レスポンス ===');
-            console.log('Status:', status);
-            
-            if (status === 'OK') {
-                const result = response.rows[0].elements[0];
-                
-                if (result.status === 'OK') {
-                    const distance = result.distance.value / 1000; // メートル → km
-                    const duration = result.duration.value / 3600; // 秒 → 時間
-                    
-                    console.log('✓ 距離:', result.distance.text, '(', distance.toFixed(1), 'km)');
-                    console.log('✓ 時間:', result.duration.text, '(', duration.toFixed(2), '時間)');
-                    console.log('ℹ️ 通行料金: 概算計算を使用（Distance Matrix APIは料金非対応）');
-                    console.log('===========================================');
-                    
-                    resolve({
-                        distance: distance,
-                        duration: duration,
-                        distanceText: result.distance.text,
-                        durationText: result.duration.text,
-                        tollFee: null,  // Distance Matrix APIは料金非対応
-                        tollCurrency: 'JPY',
-                        tollInfo: 'Distance Matrix APIは料金非対応（概算使用）'
-                    });
-                } else {
-                    console.error('ルート取得エラー:', result.status);
-                    reject(new Error('ルートが見つかりませんでした: ' + result.status));
-                }
-            } else {
-                console.error('Distance Matrix APIエラー:', status);
-                reject(new Error('距離計算に失敗しました: ' + status));
-            }
-        });
-    });
+        // 目的地の座標を取得
+        const destCoords = await getCoordinatesFromZipcode(destZipcode);
+        
+        console.log('Origin:', originCoords);
+        console.log('Destination:', destCoords);
+        
+        // Haversine公式で直線距離を計算
+        const straightDistance = calculateHaversineDistance(
+            originCoords.lat,
+            originCoords.lng,
+            destCoords.lat,
+            destCoords.lng
+        );
+        
+        console.log('直線距離:', straightDistance.toFixed(2), 'km');
+        
+        // 道路係数を適用（実際の道路距離は直線距離の約1.3〜1.5倍）
+        const roadFactor = useHighway ? 1.3 : 1.4; // 高速道路使用時は係数が小さい
+        const distance = straightDistance * roadFactor;
+        
+        console.log('道路距離（推定）:', distance.toFixed(2), 'km');
+        
+        // 所要時間を推定（高速: 80km/h、一般道: 40km/h）
+        const averageSpeed = useHighway ? 80 : 40; // km/h
+        const duration = distance / averageSpeed; // 時間
+        
+        console.log('所要時間（推定）:', duration.toFixed(2), '時間');
+        
+        const distanceText = `${distance.toFixed(1)} km（推定）`;
+        const durationMinutes = Math.round(duration * 60);
+        const durationText = `約 ${durationMinutes} 分`;
+        
+        console.log('✓ 計算完了');
+        console.log('===========================================');
+        
+        return {
+            distance: distance,
+            duration: duration,
+            distanceText: distanceText,
+            durationText: durationText,
+            tollFee: null,
+            tollCurrency: 'JPY',
+            tollInfo: '推定値（Haversine公式 + 道路係数）'
+        };
+        
+    } catch (error) {
+        console.error('距離計算エラー:', error);
+        throw new Error('距離計算に失敗しました: ' + error.message);
+    }
 }
 
 // 配送料金を計算
@@ -316,10 +386,10 @@ async function calculateDeliveryCost() {
         const destinationIC = getNearestIC(city);
         const drivePlazaURL = generateDrivePlazaURL(destinationIC);
         
-        // 5. 距離と時間を計算（Google Maps Directions API使用）
-        const { distance, duration, distanceText, durationText, tollFee, route } = await calculateDistanceAndTime(
-            originAddress, 
-            destAddress, 
+        // 5. 距離と時間を計算（APIキー不要版）
+        const { distance, duration, distanceText, durationText, tollFee } = await calculateDistanceAndTime(
+            ORIGIN_ZIPCODE, 
+            destinationZipcode, 
             settings.useHighway
         );
         

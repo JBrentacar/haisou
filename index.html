@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>配送料金算出システム</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDKX_AK5gMF9mkQyO5jESbmGDp3VzWcA3A&libraries=places"></script>
 </head>
 <body>
     <div class="container">
@@ -106,9 +105,9 @@
                     <span id="highwayDetail"></span>
                 </div>
                 <div class="highway-link-box">
-                    <p class="highway-note">⚠️ Google Maps APIは日本の通行料金に対応していません</p>
+                    <p class="highway-note">⚠️ 距離・時間・料金は全て推定値です</p>
                     <a id="highwayLink" href="#" target="_blank" rel="noopener noreferrer" class="highway-link">
-                        🛣️ NEXCO ドラぷらで正確な料金を確認（推奨）
+                        🛣️ NEXCO ドラぷらで正確な距離・料金を確認（推奨）
                     </a>
                 </div>
 
@@ -135,11 +134,11 @@
             <div class="note">
                 <p><strong>※ 注意事項</strong></p>
                 <ul>
-                    <li><strong>距離・時間：</strong>Google Maps APIで正確に計算（精度95%以上）</li>
+                    <li><strong>距離・時間：</strong>Haversine公式による推定値（直線距離 × 道路係数）</li>
                     <li><strong>高速道路料金：</strong>概算計算（24.6円/km × 距離）</li>
-                    <li>Google Maps APIは日本の通行料金情報に対応していません</li>
                     <li><strong>正確な料金確認：</strong>NEXCOドラぷらリンクをご利用ください（推奨）</li>
                     <li>実際の料金は時間帯（深夜割引等）により変動する可能性があります</li>
+                    <li>距離・時間は推定値です。実際のルートとは異なる場合があります</li>
                 </ul>
             </div>
         </div>
