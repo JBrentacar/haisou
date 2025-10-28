@@ -1,5 +1,6 @@
 // 定数定義
 const ORIGIN_ZIPCODE = '986-0814';
+const ORIGIN_ADDRESS = '宮城県石巻市南中里2丁目9-27'; // 出発地（固定）
 const ORIGIN_IC = '石巻河南'; // 出発IC（固定）
 const NUM_WORKERS = 2;
 const HIGHWAY_COST_PER_KM = 24.6; // 円/km（普通車・ETC料金の概算）
@@ -83,7 +84,7 @@ function getSettings() {
     };
 }
 
-// 郵便番号から住所を取得
+// 郵便番号から住所を取得（郵便番号APIを使用）
 async function getAddressFromZipcode(zipcode) {
     // ハイフンを除去
     const cleanZipcode = zipcode.replace(/-/g, '');
@@ -95,16 +96,64 @@ async function getAddressFromZipcode(zipcode) {
         
         if (data.status === 200 && data.results) {
             const result = data.results[0];
+            // 都道府県 + 市区町村 + 町域 を結合して完全な住所を作成
             const address = `${result.address1}${result.address2}${result.address3}`;
             const prefecture = result.address1;
             const city = result.address2;
-            return { address, prefecture, city };
+            return { 
+                address, 
+                prefecture, 
+                city,
+                fullAddress: address  // Google Maps APIで使用する完全な住所
+            };
         } else {
             throw new Error('郵便番号が見つかりませんでした');
         }
     } catch (error) {
         throw new Error('郵便番号の検索に失敗しました: ' + error.message);
     }
+}
+
+// Google Geocoding APIを使用して郵便番号から正確な住所を取得（オプション）
+async function getFullAddressFromZipcode(zipcode) {
+    return new Promise((resolve, reject) => {
+        const geocoder = new google.maps.Geocoder();
+        
+        geocoder.geocode({ 
+            address: zipcode,
+            region: 'JP',
+            componentRestrictions: {
+                country: 'JP',
+                postalCode: zipcode.replace(/-/g, '')
+            }
+        }, (results, status) => {
+            if (status === 'OK' && results[0]) {
+                const addressComponents = results[0].address_components;
+                let prefecture = '';
+                let city = '';
+                
+                // 住所コンポーネントから都道府県と市区町村を抽出
+                addressComponents.forEach(component => {
+                    if (component.types.includes('administrative_area_level_1')) {
+                        prefecture = component.long_name;
+                    }
+                    if (component.types.includes('locality') || component.types.includes('administrative_area_level_2')) {
+                        city = component.long_name;
+                    }
+                });
+                
+                resolve({
+                    address: results[0].formatted_address,
+                    prefecture: prefecture,
+                    city: city,
+                    fullAddress: results[0].formatted_address,
+                    location: results[0].geometry.location
+                });
+            } else {
+                reject(new Error('住所が見つかりませんでした: ' + status));
+            }
+        });
+    });
 }
 
 // 宮城県内の市区町村から最寄りのICを取得
@@ -139,42 +188,63 @@ function generateDrivePlazaURL(destinationIC) {
     return `https://www.driveplaza.com/dp/SearchQuick?${params.toString()}`;
 }
 
-// Google Maps APIを使用して距離と時間を計算
+// Google Maps Directions APIを使用して距離・時間・料金を計算
 async function calculateDistanceAndTime(originAddress, destAddress, useHighway) {
     return new Promise((resolve, reject) => {
         try {
-            const service = new google.maps.DistanceMatrixService();
+            const service = new google.maps.DirectionsService();
             
             // 高速道路使用の有無を設定
             const avoidHighways = !useHighway;
             
-            service.getDistanceMatrix({
-                origins: [originAddress],
-                destinations: [destAddress],
+            const request = {
+                origin: originAddress,
+                destination: destAddress,
                 travelMode: google.maps.TravelMode.DRIVING,
                 avoidHighways: avoidHighways,
                 unitSystem: google.maps.UnitSystem.METRIC,
-                region: 'JP'
-            }, (response, status) => {
+                region: 'JP',
+                provideRouteAlternatives: false
+            };
+            
+            service.route(request, (response, status) => {
                 if (status === 'OK') {
-                    const result = response.rows[0].elements[0];
+                    const route = response.routes[0];
+                    const leg = route.legs[0];
                     
-                    if (result.status === 'OK') {
-                        // 距離（km）と時間（時間）に変換
-                        const distance = result.distance.value / 1000; // メートル → km
-                        const duration = result.duration.value / 3600; // 秒 → 時間
-                        
-                        resolve({
-                            distance: distance,
-                            duration: duration,
-                            distanceText: result.distance.text,
-                            durationText: result.duration.text
-                        });
-                    } else {
-                        reject(new Error('ルートが見つかりませんでした'));
+                    // 距離（km）と時間（時間）に変換
+                    const distance = leg.distance.value / 1000; // メートル → km
+                    const duration = leg.duration.value / 3600; // 秒 → 時間
+                    
+                    // 通行料金を取得（利用可能な場合）
+                    let tollFee = null;
+                    let tollCurrency = 'JPY';
+                    
+                    // Directions APIのfareフィールドから料金を取得
+                    if (route.fare) {
+                        tollFee = route.fare.value;
+                        tollCurrency = route.fare.currency;
                     }
+                    
+                    // legs内のstepsから通行料金情報を取得
+                    let totalTollFee = 0;
+                    leg.steps.forEach(step => {
+                        if (step.transit && step.transit.fare) {
+                            totalTollFee += step.transit.fare.value;
+                        }
+                    });
+                    
+                    resolve({
+                        distance: distance,
+                        duration: duration,
+                        distanceText: leg.distance.text,
+                        durationText: leg.duration.text,
+                        tollFee: tollFee,
+                        tollCurrency: tollCurrency,
+                        route: route
+                    });
                 } else {
-                    reject(new Error('距離の計算に失敗しました: ' + status));
+                    reject(new Error('ルートが見つかりませんでした: ' + status));
                 }
             });
         } catch (error) {
@@ -214,22 +284,48 @@ async function calculateDeliveryCost() {
         // 0. 設定を取得
         const settings = getSettings();
         
-        // 1. 住所を取得
-        const originAddress = '宮城県石巻市南光町2丁目';
-        const { address: destAddress, prefecture, city } = await getAddressFromZipcode(destinationZipcode);
+        // 1. 出発地住所（固定）
+        const originAddress = ORIGIN_ADDRESS;
         
-        // 1.5. 宮城県内かチェック
-        if (prefecture !== '宮城県') {
+        // 2. 配送先の住所を郵便番号から取得
+        // まず郵便番号APIで基本情報を取得
+        const zipcodeData = await getAddressFromZipcode(destinationZipcode);
+        
+        // 2.5. 宮城県内かチェック
+        if (zipcodeData.prefecture !== '宮城県') {
             showError('このシステムは宮城県内専用です。宮城県内の郵便番号を入力してください。');
             return;
         }
         
-        // 1.6. 最寄りのICとドラぷらURLを生成
+        // 3. Google Geocoding APIでより正確な住所を取得（エラー時は郵便番号APIの結果を使用）
+        let destAddressInfo;
+        try {
+            destAddressInfo = await getFullAddressFromZipcode(destinationZipcode);
+            // 都道府県が宮城県でない場合は郵便番号APIの結果を使用
+            if (!destAddressInfo.prefecture.includes('宮城')) {
+                destAddressInfo = {
+                    ...zipcodeData,
+                    fullAddress: zipcodeData.address
+                };
+            }
+        } catch (error) {
+            console.log('Google Geocoding API失敗、郵便番号APIの結果を使用:', error);
+            destAddressInfo = {
+                ...zipcodeData,
+                fullAddress: zipcodeData.address
+            };
+        }
+        
+        const destAddress = destAddressInfo.fullAddress;
+        const prefecture = destAddressInfo.prefecture;
+        const city = destAddressInfo.city;
+        
+        // 4. 最寄りのICとドラぷらURLを生成
         const destinationIC = getNearestIC(city);
         const drivePlazaURL = generateDrivePlazaURL(destinationIC);
         
-        // 2. 距離と時間を計算（Google Maps API使用）
-        const { distance, duration, distanceText, durationText } = await calculateDistanceAndTime(
+        // 5. 距離と時間を計算（Google Maps Directions API使用）
+        const { distance, duration, distanceText, durationText, tollFee, route } = await calculateDistanceAndTime(
             originAddress, 
             destAddress, 
             settings.useHighway
@@ -245,13 +341,24 @@ async function calculateDeliveryCost() {
         // ガソリン代 = 往復距離 ÷ 燃費 × ガソリン単価（スタッフ車のみ）
         const gasCost = (roundTripDistance / settings.fuelEfficiency) * settings.gasPrice;
         
-        // 高速道路料金 = 片道料金 × 3（往路2台 + 復路1台）
+        // 高速道路料金
         let oneWayHighwayCost = 0;
         let highwayCost = 0;
+        let googleTollFee = tollFee;
+        let hasActualTollFee = false;
         
         if (settings.useHighway) {
-            oneWayHighwayCost = distance * HIGHWAY_COST_PER_KM;
-            highwayCost = oneWayHighwayCost * 3;
+            // Google Mapsから通行料金が取得できた場合
+            if (tollFee !== null && tollFee > 0) {
+                oneWayHighwayCost = tollFee;
+                highwayCost = tollFee * 3; // 往路2台分 + 復路1台分
+                hasActualTollFee = true;
+            } else {
+                // 取得できない場合は概算
+                oneWayHighwayCost = distance * HIGHWAY_COST_PER_KM;
+                highwayCost = oneWayHighwayCost * 3;
+                hasActualTollFee = false;
+            }
         }
         
         // 直接経費の合計
@@ -279,6 +386,8 @@ async function calculateDeliveryCost() {
             gasCost,
             highwayCost,
             oneWayHighwayCost,
+            hasActualTollFee,
+            googleTollFee,
             directCost,
             profit,
             totalCost,
@@ -326,9 +435,16 @@ function displayResult(data) {
     document.getElementById('gasDetail').textContent = 
         `${data.roundTripDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
     
-    document.getElementById('highwayCost').textContent = `¥${Math.round(data.highwayCost).toLocaleString()}`;
-    document.getElementById('highwayDetail').textContent = 
-        `¥${Math.round(data.oneWayHighwayCost).toLocaleString()} × 3`;
+    // 高速道路料金の表示（実際の料金か概算かを明示）
+    if (data.hasActualTollFee) {
+        document.getElementById('highwayCost').textContent = `¥${Math.round(data.highwayCost).toLocaleString()} ✓`;
+        document.getElementById('highwayDetail').textContent = 
+            `¥${Math.round(data.oneWayHighwayCost).toLocaleString()} × 3（Google Maps実測値）`;
+    } else {
+        document.getElementById('highwayCost').textContent = `¥${Math.round(data.highwayCost).toLocaleString()} (概算)`;
+        document.getElementById('highwayDetail').textContent = 
+            `¥${Math.round(data.oneWayHighwayCost).toLocaleString()} × 3（概算: ${HIGHWAY_COST_PER_KM}円/km）`;
+    }
     
     document.getElementById('directCost').textContent = `¥${Math.round(data.directCost).toLocaleString()}`;
     
