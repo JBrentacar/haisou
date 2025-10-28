@@ -139,81 +139,48 @@ function generateDrivePlazaURL(destinationIC) {
     return `https://www.driveplaza.com/dp/SearchQuick?${params.toString()}`;
 }
 
-// 距離と時間を計算（Google Maps APIの代わりに概算計算を使用）
-async function calculateDistanceAndTime(originAddress, destAddress) {
-    try {
-        // 実際のアプリケーションではGoogle Maps APIを使用しますが、
-        // ここでは無料で使えるOpenStreetMap Nominatim APIで座標を取得し、
-        // 直線距離から道路距離を推定します
-        
-        const originCoords = await getCoordinates(originAddress);
-        const destCoords = await getCoordinates(destAddress);
-        
-        // 2点間の直線距離を計算（Haversine formula）
-        const straightDistance = calculateHaversineDistance(
-            originCoords.lat, originCoords.lon,
-            destCoords.lat, destCoords.lon
-        );
-        
-        // 道路距離は直線距離の約1.3倍と仮定
-        const roadDistance = straightDistance * 1.3;
-        
-        // 高速道路使用時の平均速度を80km/hと仮定
-        const travelTime = roadDistance / 80;
-        
-        return {
-            distance: roadDistance,
-            duration: travelTime
-        };
-    } catch (error) {
-        throw new Error('距離の計算に失敗しました: ' + error.message);
-    }
-}
-
-// 住所から座標を取得
-async function getCoordinates(address) {
-    try {
-        const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
-            {
-                headers: {
-                    'User-Agent': 'DeliveryCostCalculator/1.0'
+// Google Maps APIを使用して距離と時間を計算
+async function calculateDistanceAndTime(originAddress, destAddress, useHighway) {
+    return new Promise((resolve, reject) => {
+        try {
+            const service = new google.maps.DistanceMatrixService();
+            
+            // 高速道路使用の有無を設定
+            const avoidHighways = !useHighway;
+            
+            service.getDistanceMatrix({
+                origins: [originAddress],
+                destinations: [destAddress],
+                travelMode: google.maps.TravelMode.DRIVING,
+                avoidHighways: avoidHighways,
+                unitSystem: google.maps.UnitSystem.METRIC,
+                region: 'JP'
+            }, (response, status) => {
+                if (status === 'OK') {
+                    const result = response.rows[0].elements[0];
+                    
+                    if (result.status === 'OK') {
+                        // 距離（km）と時間（時間）に変換
+                        const distance = result.distance.value / 1000; // メートル → km
+                        const duration = result.duration.value / 3600; // 秒 → 時間
+                        
+                        resolve({
+                            distance: distance,
+                            duration: duration,
+                            distanceText: result.distance.text,
+                            durationText: result.duration.text
+                        });
+                    } else {
+                        reject(new Error('ルートが見つかりませんでした'));
+                    }
+                } else {
+                    reject(new Error('距離の計算に失敗しました: ' + status));
                 }
-            }
-        );
-        const data = await response.json();
-        
-        if (data.length > 0) {
-            return {
-                lat: parseFloat(data[0].lat),
-                lon: parseFloat(data[0].lon)
-            };
-        } else {
-            throw new Error('住所の座標が見つかりませんでした');
+            });
+        } catch (error) {
+            reject(new Error('Google Maps APIエラー: ' + error.message));
         }
-    } catch (error) {
-        throw new Error('座標の取得に失敗しました: ' + error.message);
-    }
-}
-
-// Haversine公式で2点間の距離を計算
-function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371; // 地球の半径（km）
-    const dLat = toRadians(lat2 - lat1);
-    const dLon = toRadians(lon2 - lon1);
-    
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
-    
-    return distance;
-}
-
-function toRadians(degrees) {
-    return degrees * Math.PI / 180;
+    });
 }
 
 // 配送料金を計算
@@ -261,8 +228,12 @@ async function calculateDeliveryCost() {
         const destinationIC = getNearestIC(city);
         const drivePlazaURL = generateDrivePlazaURL(destinationIC);
         
-        // 2. 距離と時間を計算
-        const { distance, duration } = await calculateDistanceAndTime(originAddress, destAddress);
+        // 2. 距離と時間を計算（Google Maps API使用）
+        const { distance, duration, distanceText, durationText } = await calculateDistanceAndTime(
+            originAddress, 
+            destAddress, 
+            settings.useHighway
+        );
         
         // 3. 各費用を計算
         const roundTripDistance = distance * 2; // 往復距離
@@ -300,6 +271,8 @@ async function calculateDeliveryCost() {
             drivePlazaURL,
             distance,
             duration,
+            distanceText,
+            durationText,
             roundTripDistance,
             roundTripDuration,
             laborCost,
@@ -325,8 +298,10 @@ function displayResult(data) {
     // ルート情報
     document.getElementById('destAddress').textContent = data.destAddress;
     document.getElementById('destinationIC').textContent = `${data.destinationIC}IC（${data.city}）`;
-    document.getElementById('distance').textContent = `${data.distance.toFixed(1)} km`;
-    document.getElementById('duration').textContent = `${data.duration.toFixed(1)} 時間`;
+    
+    // Google Maps APIからの正確な距離と時間を表示
+    document.getElementById('distance').textContent = `${data.distanceText} (${data.distance.toFixed(1)} km)`;
+    document.getElementById('duration').textContent = `${data.durationText} (${data.duration.toFixed(2)} 時間)`;
     
     // ドラぷらリンクを設定（高速道路使用時のみ表示）
     const highwayLinkBox = document.querySelector('.highway-link-box');
