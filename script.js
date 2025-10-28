@@ -188,181 +188,61 @@ function generateDrivePlazaURL(destinationIC) {
     return `https://www.driveplaza.com/dp/SearchQuick?${params.toString()}`;
 }
 
-// Geocoding APIで住所を座標に変換
-async function geocodeAddress(address) {
+// Google Maps Distance Matrix APIを使用して距離・時間を計算（高速・信頼性重視）
+async function calculateDistanceAndTime(originAddress, destAddress, useHighway) {
     return new Promise((resolve, reject) => {
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({ address: address, region: 'JP' }, (results, status) => {
-            if (status === 'OK' && results[0]) {
-                const location = results[0].geometry.location;
-                resolve({
-                    lat: location.lat(),
-                    lng: location.lng()
-                });
+        const service = new google.maps.DistanceMatrixService();
+        
+        console.log('=== Google Maps Distance Matrix API リクエスト ===');
+        console.log('Origin:', originAddress);
+        console.log('Destination:', destAddress);
+        console.log('Use Highway:', useHighway);
+        
+        const request = {
+            origins: [originAddress],
+            destinations: [destAddress],
+            travelMode: 'DRIVING',
+            avoidHighways: !useHighway,
+            avoidTolls: !useHighway,
+            unitSystem: google.maps.UnitSystem.METRIC,
+            region: 'JP'
+        };
+        
+        service.getDistanceMatrix(request, (response, status) => {
+            console.log('=== Distance Matrix API レスポンス ===');
+            console.log('Status:', status);
+            
+            if (status === 'OK') {
+                const result = response.rows[0].elements[0];
+                
+                if (result.status === 'OK') {
+                    const distance = result.distance.value / 1000; // メートル → km
+                    const duration = result.duration.value / 3600; // 秒 → 時間
+                    
+                    console.log('✓ 距離:', result.distance.text, '(', distance.toFixed(1), 'km)');
+                    console.log('✓ 時間:', result.duration.text, '(', duration.toFixed(2), '時間)');
+                    console.log('ℹ️ 通行料金: 概算計算を使用（Distance Matrix APIは料金非対応）');
+                    console.log('===========================================');
+                    
+                    resolve({
+                        distance: distance,
+                        duration: duration,
+                        distanceText: result.distance.text,
+                        durationText: result.duration.text,
+                        tollFee: null,  // Distance Matrix APIは料金非対応
+                        tollCurrency: 'JPY',
+                        tollInfo: 'Distance Matrix APIは料金非対応（概算使用）'
+                    });
+                } else {
+                    console.error('ルート取得エラー:', result.status);
+                    reject(new Error('ルートが見つかりませんでした: ' + result.status));
+                }
             } else {
-                reject(new Error('住所のジオコーディングに失敗しました: ' + status));
+                console.error('Distance Matrix APIエラー:', status);
+                reject(new Error('距離計算に失敗しました: ' + status));
             }
         });
     });
-}
-
-// Google Maps Routes APIを使用して距離・時間・料金を計算
-async function calculateDistanceAndTime(originAddress, destAddress, useHighway) {
-    try {
-        // Geocoding APIで住所を座標に変換
-        const originCoords = await geocodeAddress(originAddress);
-        const destCoords = await geocodeAddress(destAddress);
-        
-        console.log('=== Google Maps Routes API リクエスト ===');
-        console.log('Origin:', originAddress, originCoords);
-        console.log('Destination:', destAddress, destCoords);
-        console.log('Use Highway:', useHighway);
-        
-        // Routes APIを使用（REST API）
-        const requestBody = {
-            origin: {
-                location: {
-                    latLng: {
-                        latitude: originCoords.lat,
-                        longitude: originCoords.lng
-                    }
-                }
-            },
-            destination: {
-                location: {
-                    latLng: {
-                        latitude: destCoords.lat,
-                        longitude: destCoords.lng
-                    }
-                }
-            },
-            travelMode: "DRIVE",
-            routingPreference: "TRAFFIC_AWARE",
-            computeAlternativeRoutes: false,
-            routeModifiers: {
-                avoidTolls: !useHighway,
-                avoidHighways: !useHighway,
-                vehicleInfo: {
-                    emissionType: "GASOLINE"
-                }
-            },
-            languageCode: "ja",
-            units: "METRIC",
-            extraComputations: ["TOLLS"]  // 料金情報をリクエスト
-        };
-        
-        console.log('Request Body:', JSON.stringify(requestBody, null, 2));
-        
-        const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': 'AIzaSyBFYB0bBR_kDQNp2D0cxWocUrCs2Y8IvHE',
-                'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.travelAdvisory.tollInfo,routes.legs.travelAdvisory.tollInfo'
-            },
-            body: JSON.stringify(requestBody)
-        });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Routes API Error:', response.status, errorText);
-            throw new Error(`Routes API Error: ${response.status} - ${errorText}`);
-        }
-        
-        const data = await response.json();
-        console.log('=== Google Maps Routes API レスポンス ===');
-        console.log('Full Response:', JSON.stringify(data, null, 2));
-        
-        // レスポンスの検証
-        if (!data.routes || data.routes.length === 0) {
-            throw new Error('ルートが見つかりませんでした');
-        }
-        
-        const route = data.routes[0];
-        
-        // 距離と時間を取得
-        const distanceMeters = route.distanceMeters || 0;
-        const durationSeconds = route.duration ? parseFloat(route.duration.replace('s', '')) : 0;
-        
-        const distance = distanceMeters / 1000; // メートル → km
-        const duration = durationSeconds / 3600; // 秒 → 時間
-        
-        // 距離と時間を読みやすいテキスト形式に変換
-        const distanceText = `${distance.toFixed(1)} km`;
-        const durationMinutes = Math.round(durationSeconds / 60);
-        const durationText = `${durationMinutes} 分`;
-        
-        console.log('Distance:', distanceMeters, 'meters =', distance.toFixed(1), 'km');
-        console.log('Duration:', durationSeconds, 'seconds =', duration.toFixed(2), 'hours =', durationMinutes, 'minutes');
-        
-        // 通行料金を取得
-        let tollFee = null;
-        let tollCurrency = 'JPY';
-        let tollInfo = null;
-        
-        // Routes APIのtollInfo から料金を取得
-        if (route.travelAdvisory && route.travelAdvisory.tollInfo) {
-            const tollInfoData = route.travelAdvisory.tollInfo;
-            console.log('Toll Info:', JSON.stringify(tollInfoData, null, 2));
-            
-            // estimatedPrice配列から料金を取得
-            if (tollInfoData.estimatedPrice && tollInfoData.estimatedPrice.length > 0) {
-                const priceInfo = tollInfoData.estimatedPrice[0];
-                // unitsがナノ単位（10^-9）の場合、実際の金額に変換
-                if (priceInfo.units) {
-                    tollFee = parseFloat(priceInfo.units);
-                    if (priceInfo.nanos) {
-                        tollFee += priceInfo.nanos / 1000000000;
-                    }
-                    tollCurrency = priceInfo.currencyCode || 'JPY';
-                    tollInfo = 'Google Routes APIから取得';
-                    console.log('✓ 通行料金取得成功:', tollFee, tollCurrency);
-                }
-            }
-        }
-        
-        // legsレベルのtollInfoもチェック（より詳細な情報がある場合）
-        if (!tollFee && route.legs && route.legs[0] && route.legs[0].travelAdvisory && route.legs[0].travelAdvisory.tollInfo) {
-            const legTollInfo = route.legs[0].travelAdvisory.tollInfo;
-            console.log('Leg Toll Info:', JSON.stringify(legTollInfo, null, 2));
-            
-            if (legTollInfo.estimatedPrice && legTollInfo.estimatedPrice.length > 0) {
-                const priceInfo = legTollInfo.estimatedPrice[0];
-                if (priceInfo.units) {
-                    tollFee = parseFloat(priceInfo.units);
-                    if (priceInfo.nanos) {
-                        tollFee += priceInfo.nanos / 1000000000;
-                    }
-                    tollCurrency = priceInfo.currencyCode || 'JPY';
-                    tollInfo = 'Google Routes APIから取得（Leg情報）';
-                    console.log('✓ Leg通行料金取得成功:', tollFee, tollCurrency);
-                }
-            }
-        }
-        
-        if (!tollFee) {
-            console.log('ℹ️ 通行料金情報が取得できませんでした');
-            console.log('   → NEXCOドラぷらリンクで正確な料金をご確認ください');
-            tollInfo = '通行料金情報なし（NEXCOドラぷらで確認推奨）';
-        }
-        
-        console.log('===========================================');
-        
-        return {
-            distance: distance,
-            duration: duration,
-            distanceText: distanceText,
-            durationText: durationText,
-            tollFee: tollFee,
-            tollCurrency: tollCurrency,
-            tollInfo: tollInfo,
-            route: route
-        };
-        
-    } catch (error) {
-        console.error('calculateDistanceAndTime エラー:', error);
-        throw new Error('ルート計算に失敗しました: ' + error.message);
-    }
 }
 
 // 配送料金を計算
