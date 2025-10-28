@@ -304,30 +304,36 @@ button:disabled {
 
 .highway-link-box {
     margin-top: 15px;
-    padding: 15px;
-    background: #e3f2fd;
+    padding: 20px;
+    background: #fff3e0;
     border-radius: 8px;
-    border: 2px solid #2196f3;
+    border: 2px solid #ff9800;
+}
+
+.highway-note {
+    color: #e65100;
+    font-weight: bold;
+    margin-bottom: 12px;
+    font-size: 0.95em;
 }
 
 .highway-link {
     display: inline-block;
-    color: #1976d2;
+    color: white;
     text-decoration: none;
     font-weight: bold;
-    font-size: 1em;
-    padding: 10px 20px;
-    background: white;
-    border-radius: 6px;
+    font-size: 1.05em;
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+    border-radius: 8px;
     transition: all 0.3s;
-    border: 2px solid #2196f3;
+    box-shadow: 0 3px 8px rgba(255, 152, 0, 0.3);
 }
 
 .highway-link:hover {
-    background: #2196f3;
-    color: white;
+    background: linear-gradient(135deg, #f57c00 0%, #e65100 100%);
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
+    box-shadow: 0 5px 15px rgba(255, 152, 0, 0.5);
 }
 
 .error {

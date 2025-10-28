@@ -212,10 +212,13 @@ async function calculateDistanceAndTime(originAddress, destAddress, useHighway) 
                     const route = response.routes[0];
                     const leg = route.legs[0];
                     
-                    // デバッグ: APIレスポンスをコンソールに出力
-                    console.log('=== Google Maps Directions API レスポンス ===');
-                    console.log('Route:', route);
+                    // デバッグ: APIレスポンスを詳細に出力
+                    console.log('=== Google Maps Directions API レスポンス（詳細）===');
+                    console.log('完全なRoute情報:', JSON.stringify(route, null, 2));
                     console.log('Fare情報:', route.fare);
+                    console.log('warnings:', route.warnings);
+                    console.log('waypoint_order:', route.waypoint_order);
+                    console.log('overview_polyline:', route.overview_polyline);
                     
                     // 距離（km）と時間（時間）に変換
                     const distance = leg.distance.value / 1000; // メートル → km
@@ -233,13 +236,23 @@ async function calculateDistanceAndTime(originAddress, destAddress, useHighway) 
                         tollInfo = '料金情報を取得しました';
                         console.log('✓ 通行料金取得成功:', tollFee, tollCurrency);
                     } else {
-                        console.log('✗ 通行料金情報なし（概算を使用）');
-                        tollInfo = '料金情報が取得できませんでした（概算を使用）';
+                        console.log('ℹ️ Google Maps Directions APIは日本の通行料金に対応していません');
+                        console.log('   → NEXCOドラぷらリンクで正確な料金をご確認ください');
+                        console.log('   → 概算計算を使用します');
+                        tollInfo = 'Google Maps APIは日本の通行料金非対応（NEXCOドラぷらで確認推奨）';
                     }
                     
                     // legs内のstepsから通行料金情報を取得（念のため）
                     let totalTollFee = 0;
-                    leg.steps.forEach(step => {
+                    leg.steps.forEach((step, index) => {
+                        console.log(`Step ${index}:`, {
+                            distance: step.distance?.text,
+                            duration: step.duration?.text,
+                            instructions: step.instructions,
+                            transit: step.transit,
+                            fare: step.transit?.fare
+                        });
+                        
                         if (step.transit && step.transit.fare) {
                             totalTollFee += step.transit.fare.value;
                             console.log('Step料金:', step.transit.fare.value);
@@ -456,15 +469,14 @@ function displayResult(data) {
     document.getElementById('gasDetail').textContent = 
         `${data.roundTripDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
     
-    // 高速道路料金の表示（実際の料金か概算かを明示）
-    if (data.hasActualTollFee) {
-        document.getElementById('highwayCost').textContent = `¥${Math.round(data.highwayCost).toLocaleString()} ✓`;
-        document.getElementById('highwayDetail').textContent = 
-            `¥${Math.round(data.oneWayHighwayCost).toLocaleString()} × 3（Google Maps実測値）`;
-    } else {
+    // 高速道路料金の表示（概算）
+    if (data.settings.useHighway) {
         document.getElementById('highwayCost').textContent = `¥${Math.round(data.highwayCost).toLocaleString()} (概算)`;
         document.getElementById('highwayDetail').textContent = 
             `¥${Math.round(data.oneWayHighwayCost).toLocaleString()} × 3（概算: ${HIGHWAY_COST_PER_KM}円/km）`;
+    } else {
+        document.getElementById('highwayCost').textContent = `¥0`;
+        document.getElementById('highwayDetail').textContent = '高速道路不使用';
     }
     
     document.getElementById('directCost').textContent = `¥${Math.round(data.directCost).toLocaleString()}`;
