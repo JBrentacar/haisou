@@ -212,6 +212,11 @@ async function calculateDistanceAndTime(originAddress, destAddress, useHighway) 
                     const route = response.routes[0];
                     const leg = route.legs[0];
                     
+                    // デバッグ: APIレスポンスをコンソールに出力
+                    console.log('=== Google Maps Directions API レスポンス ===');
+                    console.log('Route:', route);
+                    console.log('Fare情報:', route.fare);
+                    
                     // 距離（km）と時間（時間）に変換
                     const distance = leg.distance.value / 1000; // メートル → km
                     const duration = leg.duration.value / 3600; // 秒 → 時間
@@ -219,20 +224,34 @@ async function calculateDistanceAndTime(originAddress, destAddress, useHighway) 
                     // 通行料金を取得（利用可能な場合）
                     let tollFee = null;
                     let tollCurrency = 'JPY';
+                    let tollInfo = null;
                     
                     // Directions APIのfareフィールドから料金を取得
                     if (route.fare) {
                         tollFee = route.fare.value;
                         tollCurrency = route.fare.currency;
+                        tollInfo = '料金情報を取得しました';
+                        console.log('✓ 通行料金取得成功:', tollFee, tollCurrency);
+                    } else {
+                        console.log('✗ 通行料金情報なし（概算を使用）');
+                        tollInfo = '料金情報が取得できませんでした（概算を使用）';
                     }
                     
-                    // legs内のstepsから通行料金情報を取得
+                    // legs内のstepsから通行料金情報を取得（念のため）
                     let totalTollFee = 0;
                     leg.steps.forEach(step => {
                         if (step.transit && step.transit.fare) {
                             totalTollFee += step.transit.fare.value;
+                            console.log('Step料金:', step.transit.fare.value);
                         }
                     });
+                    
+                    if (totalTollFee > 0 && !tollFee) {
+                        tollFee = totalTollFee;
+                        console.log('✓ Step料金から取得:', totalTollFee);
+                    }
+                    
+                    console.log('===========================================');
                     
                     resolve({
                         distance: distance,
@@ -241,9 +260,11 @@ async function calculateDistanceAndTime(originAddress, destAddress, useHighway) 
                         durationText: leg.duration.text,
                         tollFee: tollFee,
                         tollCurrency: tollCurrency,
+                        tollInfo: tollInfo,
                         route: route
                     });
                 } else {
+                    console.error('Directions APIエラー:', status);
                     reject(new Error('ルートが見つかりませんでした: ' + status));
                 }
             });
