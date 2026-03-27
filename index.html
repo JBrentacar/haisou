@@ -9,7 +9,7 @@
 <body>
     <div class="container">
         <h1>🚗 配送・回収料金算出システム</h1>
-        
+
         <!-- モード切り替えタブ -->
         <div class="mode-tabs">
             <button class="mode-tab active" data-mode="delivery" onclick="switchMode('delivery')">
@@ -19,13 +19,28 @@
                 🔄 回収モード
             </button>
         </div>
-        
+
+        <!-- 郵便番号入力（メイン） -->
+        <div class="form-section">
+            <label for="destination" id="destinationLabel">配送先郵便番号（宮城県内）</label>
+            <input type="text" id="destination" placeholder="例: 980-0021（仙台市青葉区）" maxlength="8">
+            <div id="address-preview" class="address-preview" style="display: none;"></div>
+            <div class="form-buttons">
+                <button id="calculateBtn" class="btn-calculate" onclick="calculateCost()">料金を計算</button>
+                <button id="clearBtn" class="btn-clear" onclick="clearAll()">クリア</button>
+            </div>
+        </div>
+
         <div class="info-box">
             <p><strong>出発地：</strong>〒986-0814（宮城県石巻市南中里2丁目9-27）</p>
             <p class="notice"><strong>※ このシステムは宮城県内専用です</strong></p>
         </div>
 
-        <div class="settings-section">
+        <!-- 設定セクション（折りたたみ） -->
+        <div class="settings-toggle-wrapper">
+            <button class="settings-toggle-btn" onclick="toggleSettings()">⚙️ 設定を変更する ▼</button>
+        </div>
+        <div class="settings-section" id="settingsSection" style="display: none;">
             <h2>⚙️ 設定</h2>
             <div class="settings-grid">
                 <div class="setting-item">
@@ -53,12 +68,6 @@
             </div>
         </div>
 
-        <div class="form-section">
-            <label for="destination" id="destinationLabel">配送先郵便番号（宮城県内）</label>
-            <input type="text" id="destination" placeholder="例: 980-0021（仙台市青葉区）" maxlength="8">
-            <button id="calculateBtn" onclick="calculateCost()">料金を計算</button>
-        </div>
-
         <div id="loading" class="loading" style="display: none;">
             <div class="spinner"></div>
             <p>計算中...</p>
@@ -66,7 +75,7 @@
 
         <div id="result" class="result" style="display: none;">
             <h2>💰 配送料金の内訳</h2>
-            
+
             <div class="result-section">
                 <h3>📍 ルート情報</h3>
                 <div class="result-item">
@@ -97,7 +106,7 @@
                     <span id="laborFormula">└ 往復時間 × 時給 × 2人</span>
                     <span id="laborDetail"></span>
                 </div>
-                
+
                 <div class="result-item">
                     <span id="gasCostLabel">ガソリン代（往復・スタッフ車のみ）：</span>
                     <span id="gasCost"></span>
@@ -114,7 +123,7 @@
                     <span>└ 復路距離 ÷ 燃費 × ガソリン単価</span>
                     <span id="rentalGasDetail"></span>
                 </div>
-                
+
                 <div class="result-item">
                     <span>高速道路料金（概算）：</span>
                     <span id="highwayCost"></span>
