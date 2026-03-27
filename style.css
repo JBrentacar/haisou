@@ -79,7 +79,7 @@ h3 {
     background: #f0f4ff;
     padding: 15px;
     border-radius: 10px;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     border: 2px solid #667eea;
 }
 
@@ -95,11 +95,41 @@ h3 {
     margin-top: 10px;
 }
 
+/* 設定トグルボタン */
+.settings-toggle-wrapper {
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.settings-toggle-btn {
+    width: auto;
+    padding: 8px 20px;
+    font-size: 0.95em;
+    font-weight: normal;
+    color: #555;
+    background: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+    box-shadow: none;
+}
+
+.settings-toggle-btn:hover {
+    background: #eaeaea;
+    transform: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.settings-toggle-btn:active {
+    transform: none;
+}
+
 .settings-section {
     background: #f0f4ff;
     padding: 25px;
     border-radius: 10px;
-    margin-bottom: 30px;
+    margin-bottom: 20px;
     border: 2px solid #667eea;
 }
 
@@ -146,8 +176,9 @@ h3 {
     user-select: none;
 }
 
+/* フォームセクション */
 .form-section {
-    margin-bottom: 30px;
+    margin-bottom: 20px;
 }
 
 label {
@@ -166,7 +197,23 @@ input[type="number"] {
     border: 2px solid #ddd;
     border-radius: 10px;
     transition: all 0.3s;
-    margin-bottom: 15px;
+    margin-bottom: 10px;
+}
+
+/* 郵便番号入力を大きく・目立つ */
+#destination {
+    padding: 18px 20px;
+    font-size: 1.4em;
+    border: 3px solid #667eea;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    letter-spacing: 0.05em;
+}
+
+#destination:focus {
+    outline: none;
+    border-color: #4caf50;
+    box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.15);
 }
 
 input[type="text"]:focus,
@@ -174,6 +221,80 @@ input[type="number"]:focus {
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* 住所プレビュー */
+.address-preview {
+    background: #e3f2fd;
+    border: 1.5px solid #90caf9;
+    border-radius: 8px;
+    padding: 10px 16px;
+    margin-bottom: 14px;
+    color: #1565c0;
+    font-size: 1em;
+    font-weight: 500;
+}
+
+/* ボタン行 */
+.form-buttons {
+    display: flex;
+    gap: 12px;
+    align-items: stretch;
+}
+
+/* 計算ボタン（緑グラデーション・大きく） */
+.btn-calculate {
+    flex: 1;
+    padding: 18px;
+    font-size: 1.25em;
+    font-weight: bold;
+    color: white;
+    background: linear-gradient(135deg, #43a047 0%, #1b5e20 100%);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 15px rgba(67, 160, 71, 0.4);
+}
+
+.btn-calculate:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(67, 160, 71, 0.5);
+}
+
+.btn-calculate:active {
+    transform: translateY(0);
+}
+
+.btn-calculate:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* クリアボタン */
+.btn-clear {
+    flex: 0 0 auto;
+    padding: 18px 28px;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: #555;
+    background: #f0f0f0;
+    border: 2px solid #ccc;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+    box-shadow: none;
+}
+
+.btn-clear:hover {
+    background: #e0e0e0;
+    transform: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-clear:active {
+    transform: none;
 }
 
 button {
@@ -390,5 +511,13 @@ button:disabled {
 
     .total-amount {
         font-size: 2em;
+    }
+
+    .form-buttons {
+        flex-direction: column;
+    }
+
+    .btn-clear {
+        flex: 1;
     }
 }
