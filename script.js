@@ -16,33 +16,33 @@ const MIYAGI_IC_MAP = {
     '仙台市若林区': '仙台南',
     '仙台市太白区': '仙台南',
     '仙台市泉区': '泉',
-    
+
     // 石巻圏
     '石巻市': '石巻河南',
     '東松島市': '松島海岸',
     '女川町': '石巻河南',
-    
+
     // 大崎圏
     '大崎市': '古川',
     '色麻町': '古川',
     '加美町': '古川',
     '涌谷町': '松島大郷',
     '美里町': '松島大郷',
-    
+
     // 栗原圏
     '栗原市': '築館',
-    
+
     // 登米圏
     '登米市': '登米',
-    
+
     // 気仙沼圏
     '気仙沼市': '気仙沼鹿折金山',
     '南三陸町': '気仙沼鹿折金山',
-    
+
     // 名取・岩沼
     '名取市': '仙台南',
     '岩沼市': '岩沼',
-    
+
     // 白石・角田
     '白石市': '白石',
     '角田市': '村田',
@@ -52,26 +52,26 @@ const MIYAGI_IC_MAP = {
     '村田町': '村田',
     '柴田町': '村田',
     '川崎町': '村田',
-    
+
     // 黒川郡
     '富谷市': '富谷',
     '大和町': '大和',
     '大郷町': '松島大郷',
     '大衡村': '大衡',
-    
+
     // 宮城郡
     '松島町': '松島海岸',
     '七ヶ浜町': '仙台港北',
     '利府町': '利府中',
-    
+
     // 塩竈・多賀城
     '塩竈市': '利府中',
     '多賀城市': '仙台港北',
-    
+
     // 亘理・山元
     '亘理町': '亘理',
     '山元町': '山元',
-    
+
     // 本吉郡
     '本吉町': '気仙沼鹿折金山'
 };
@@ -79,7 +79,7 @@ const MIYAGI_IC_MAP = {
 // モード切り替え関数
 function switchMode(mode) {
     currentMode = mode;
-    
+
     // タブのアクティブ状態を切り替え
     document.querySelectorAll('.mode-tab').forEach(tab => {
         tab.classList.remove('active');
@@ -87,7 +87,7 @@ function switchMode(mode) {
             tab.classList.add('active');
         }
     });
-    
+
     // ラベル表示を切り替え
     const destinationLabel = document.getElementById('destinationLabel');
     if (mode === 'delivery') {
@@ -95,11 +95,98 @@ function switchMode(mode) {
     } else {
         destinationLabel.textContent = '回収先郵便番号（宮城県内）';
     }
-    
+
     // 結果が表示されている場合は再計算
     const resultDiv = document.getElementById('result');
     if (resultDiv.style.display !== 'none') {
         calculateCost();
+    }
+}
+
+// 設定セクションのトグル
+function toggleSettings() {
+    const section = document.getElementById('settingsSection');
+    const btn = document.querySelector('.settings-toggle-btn');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        btn.textContent = '⚙️ 設定を変更する ▲';
+    } else {
+        section.style.display = 'none';
+        btn.textContent = '⚙️ 設定を変更する ▼';
+    }
+}
+
+// クリア／リセット関数
+function clearAll() {
+    // 入力欄をクリア
+    document.getElementById('destination').value = '';
+
+    // 住所プレビューを非表示
+    const preview = document.getElementById('address-preview');
+    preview.style.display = 'none';
+    preview.textContent = '';
+
+    // 結果・エラーを非表示
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('error').style.display = 'none';
+
+    // 入力欄にフォーカス
+    document.getElementById('destination').focus();
+}
+
+// 郵便番号の自動ハイフン挿入とリアルタイム住所検索
+function handleZipcodeInput(e) {
+    let value = e.target.value;
+
+    // 数字とハイフン以外を除去
+    value = value.replace(/[^\d-]/g, '');
+
+    // ハイフンを一旦除去して数字のみ取得
+    const digits = value.replace(/-/g, '');
+
+    // 3桁以上なら自動ハイフン挿入
+    if (digits.length > 3) {
+        value = digits.slice(0, 3) + '-' + digits.slice(3, 7);
+    } else {
+        value = digits.slice(0, 3);
+    }
+
+    // カーソル位置を保持するため値をセット
+    e.target.value = value;
+
+    // 7桁（ハイフンなし）または8文字（ハイフンあり）で住所検索
+    if (digits.length === 7) {
+        lookupAddressPreview(digits);
+    } else {
+        // 桁数が足りない場合はプレビューをクリア
+        const preview = document.getElementById('address-preview');
+        preview.style.display = 'none';
+        preview.textContent = '';
+    }
+}
+
+// リアルタイム住所プレビュー
+async function lookupAddressPreview(digits) {
+    const preview = document.getElementById('address-preview');
+    preview.textContent = '住所を検索中...';
+    preview.style.display = 'block';
+
+    try {
+        const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${digits}`);
+        const data = await response.json();
+
+        if (data.status === 200 && data.results) {
+            const r = data.results[0];
+            const address = `${r.address1}${r.address2}${r.address3}`;
+            preview.textContent = '📍 ' + address;
+            preview.style.display = 'block';
+        } else {
+            preview.textContent = '⚠️ 該当する住所が見つかりませんでした';
+            preview.style.display = 'block';
+        }
+    } catch (err) {
+        preview.textContent = '⚠️ 住所の取得に失敗しました';
+        preview.style.display = 'block';
     }
 }
 
@@ -119,21 +206,21 @@ function getSettings() {
 async function getAddressFromZipcode(zipcode) {
     // ハイフンを除去
     const cleanZipcode = zipcode.replace(/-/g, '');
-    
+
     try {
         // 郵便番号検索API（無料）を使用
         const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleanZipcode}`);
         const data = await response.json();
-        
+
         if (data.status === 200 && data.results) {
             const result = data.results[0];
             // 都道府県 + 市区町村 + 町域 を結合して完全な住所を作成
             const address = `${result.address1}${result.address2}${result.address3}`;
             const prefecture = result.address1;
             const city = result.address2;
-            return { 
-                address, 
-                prefecture, 
+            return {
+                address,
+                prefecture,
                 city,
                 fullAddress: address  // Google Maps APIで使用する完全な住所
             };
@@ -149,8 +236,8 @@ async function getAddressFromZipcode(zipcode) {
 async function getFullAddressFromZipcode(zipcode) {
     return new Promise((resolve, reject) => {
         const geocoder = new google.maps.Geocoder();
-        
-        geocoder.geocode({ 
+
+        geocoder.geocode({
             address: zipcode,
             region: 'JP',
             componentRestrictions: {
@@ -162,7 +249,7 @@ async function getFullAddressFromZipcode(zipcode) {
                 const addressComponents = results[0].address_components;
                 let prefecture = '';
                 let city = '';
-                
+
                 // 住所コンポーネントから都道府県と市区町村を抽出
                 addressComponents.forEach(component => {
                     if (component.types.includes('administrative_area_level_1')) {
@@ -172,7 +259,7 @@ async function getFullAddressFromZipcode(zipcode) {
                         city = component.long_name;
                     }
                 });
-                
+
                 resolve({
                     address: results[0].formatted_address,
                     prefecture: prefecture,
@@ -215,23 +302,23 @@ function generateDrivePlazaURL(destinationIC) {
         searchDay: now.getDate().toString(),
         selectickindflg: '0'
     });
-    
+
     return `https://www.driveplaza.com/dp/SearchQuick?${params.toString()}`;
 }
 
 // 2地点間の座標を取得（郵便番号から）
 async function getCoordinatesFromZipcode(zipcode) {
     const cleanZipcode = zipcode.replace(/-/g, '');
-    
+
     try {
         // zipcloud APIで住所取得
         const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${cleanZipcode}`);
         const data = await response.json();
-        
+
         if (data.status === 200 && data.results) {
             const result = data.results[0];
             const address = `${result.address1}${result.address2}${result.address3}`;
-            
+
             // OpenStreetMap Nominatim APIで座標取得（無料、APIキー不要）
             const geoResponse = await fetch(
                 `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address + ', Japan')}&limit=1`,
@@ -242,7 +329,7 @@ async function getCoordinatesFromZipcode(zipcode) {
                 }
             );
             const geoData = await geoResponse.json();
-            
+
             if (geoData && geoData.length > 0) {
                 return {
                     lat: parseFloat(geoData[0].lat),
@@ -265,14 +352,14 @@ function calculateHaversineDistance(lat1, lon1, lat2, lon2) {
     const R = 6371; // 地球の半径（km）
     const dLat = toRadians(lat2 - lat1);
     const dLon = toRadians(lon2 - lon1);
-    
+
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
               Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
               Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    
+
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
-    
+
     return distance;
 }
 
@@ -287,20 +374,20 @@ async function calculateDistanceAndTime(originZipcode, destZipcode, useHighway) 
         console.log('Origin Zipcode:', originZipcode);
         console.log('Destination Zipcode:', destZipcode);
         console.log('Use Highway:', useHighway);
-        
+
         // 固定の出発地座標（石巻市南中里2丁目9-27）
         const originCoords = {
             lat: 38.4347,
             lng: 141.3030,
             address: '宮城県石巻市南中里2丁目9-27'
         };
-        
+
         // 目的地の座標を取得
         const destCoords = await getCoordinatesFromZipcode(destZipcode);
-        
+
         console.log('Origin:', originCoords);
         console.log('Destination:', destCoords);
-        
+
         // Haversine公式で直線距離を計算
         const straightDistance = calculateHaversineDistance(
             originCoords.lat,
@@ -308,28 +395,28 @@ async function calculateDistanceAndTime(originZipcode, destZipcode, useHighway) 
             destCoords.lat,
             destCoords.lng
         );
-        
+
         console.log('直線距離:', straightDistance.toFixed(2), 'km');
-        
+
         // 道路係数を適用（実際の道路距離は直線距離の約1.3〜1.5倍）
         const roadFactor = useHighway ? 1.3 : 1.4; // 高速道路使用時は係数が小さい
         const distance = straightDistance * roadFactor;
-        
+
         console.log('道路距離（推定）:', distance.toFixed(2), 'km');
-        
+
         // 所要時間を推定（高速: 80km/h、一般道: 40km/h）
         const averageSpeed = useHighway ? 80 : 40; // km/h
         const duration = distance / averageSpeed; // 時間
-        
+
         console.log('所要時間（推定）:', duration.toFixed(2), '時間');
-        
+
         const distanceText = `${distance.toFixed(1)} km（推定）`;
         const durationMinutes = Math.round(duration * 60);
         const durationText = `約 ${durationMinutes} 分`;
-        
+
         console.log('✓ 計算完了');
         console.log('===========================================');
-        
+
         return {
             distance: distance,
             duration: duration,
@@ -339,7 +426,7 @@ async function calculateDistanceAndTime(originZipcode, destZipcode, useHighway) 
             tollCurrency: 'JPY',
             tollInfo: '推定値（Haversine公式 + 道路係数）'
         };
-        
+
     } catch (error) {
         console.error('距離計算エラー:', error);
         throw new Error('距離計算に失敗しました: ' + error.message);
@@ -353,21 +440,21 @@ async function calculateCost() {
     const errorDiv = document.getElementById('error');
     const loadingDiv = document.getElementById('loading');
     const calculateBtn = document.getElementById('calculateBtn');
-    
+
     // 入力チェック
     if (!destinationZipcode) {
         const modeText = currentMode === 'delivery' ? '配送先' : '回収先';
         showError(`${modeText}の郵便番号を入力してください`);
         return;
     }
-    
+
     // 郵便番号の形式チェック
     const zipcodePattern = /^\d{3}-?\d{4}$/;
     if (!zipcodePattern.test(destinationZipcode)) {
         showError('正しい郵便番号の形式で入力してください（例: 100-0001）');
         return;
     }
-    
+
     // モードに応じて適切な関数を呼び出す
     if (currentMode === 'delivery') {
         return calculateDeliveryCost();
@@ -383,43 +470,43 @@ async function calculateDeliveryCost() {
     const errorDiv = document.getElementById('error');
     const loadingDiv = document.getElementById('loading');
     const calculateBtn = document.getElementById('calculateBtn');
-    
+
     // 入力チェック
     if (!destinationZipcode) {
         showError('配送先の郵便番号を入力してください');
         return;
     }
-    
+
     // 郵便番号の形式チェック
     const zipcodePattern = /^\d{3}-?\d{4}$/;
     if (!zipcodePattern.test(destinationZipcode)) {
         showError('正しい郵便番号の形式で入力してください（例: 100-0001）');
         return;
     }
-    
+
     // UI更新
     resultDiv.style.display = 'none';
     errorDiv.style.display = 'none';
     loadingDiv.style.display = 'block';
     calculateBtn.disabled = true;
-    
+
     try {
         // 0. 設定を取得
         const settings = getSettings();
-        
+
         // 1. 出発地住所（固定）
         const originAddress = ORIGIN_ADDRESS;
-        
+
         // 2. 配送先の住所を郵便番号から取得
         // まず郵便番号APIで基本情報を取得
         const zipcodeData = await getAddressFromZipcode(destinationZipcode);
-        
+
         // 2.5. 宮城県内かチェック
         if (zipcodeData.prefecture !== '宮城県') {
             showError('このシステムは宮城県内専用です。宮城県内の郵便番号を入力してください。');
             return;
         }
-        
+
         // 3. Google Geocoding APIでより正確な住所を取得（エラー時は郵便番号APIの結果を使用）
         let destAddressInfo;
         try {
@@ -438,38 +525,38 @@ async function calculateDeliveryCost() {
                 fullAddress: zipcodeData.address
             };
         }
-        
+
         const destAddress = destAddressInfo.fullAddress;
         const prefecture = destAddressInfo.prefecture;
         const city = destAddressInfo.city;
-        
+
         // 4. 最寄りのICとドラぷらURLを生成
         const destinationIC = getNearestIC(city);
         const drivePlazaURL = generateDrivePlazaURL(destinationIC);
-        
+
         // 5. 距離と時間を計算（APIキー不要版）
         const { distance, duration, distanceText, durationText, tollFee } = await calculateDistanceAndTime(
-            ORIGIN_ZIPCODE, 
-            destinationZipcode, 
+            ORIGIN_ZIPCODE,
+            destinationZipcode,
             settings.useHighway
         );
-        
+
         // 3. 各費用を計算
         const roundTripDistance = distance * 2; // 往復距離
         const roundTripDuration = duration * 2; // 往復時間
-        
+
         // 人件費 = 往復時間 × 時給 × 2人
         const laborCost = roundTripDuration * settings.hourlyWage * NUM_WORKERS;
-        
+
         // ガソリン代 = 往復距離 ÷ 燃費 × ガソリン単価（スタッフ車のみ）
         const gasCost = (roundTripDistance / settings.fuelEfficiency) * settings.gasPrice;
-        
+
         // 高速道路料金
         let oneWayHighwayCost = 0;
         let highwayCost = 0;
         let googleTollFee = tollFee;
         let hasActualTollFee = false;
-        
+
         if (settings.useHighway) {
             // Google Mapsから通行料金が取得できた場合
             if (tollFee !== null && tollFee > 0) {
@@ -483,16 +570,16 @@ async function calculateDeliveryCost() {
                 hasActualTollFee = false;
             }
         }
-        
+
         // 直接経費の合計
         const directCost = laborCost + gasCost + highwayCost;
-        
+
         // 利益 = 直接経費 × 利益率
         const profit = directCost * (settings.profitMargin / 100);
-        
+
         // 最終的な配送料金
         const totalCost = directCost + profit;
-        
+
         // 結果を表示
         displayResult({
             destAddress,
@@ -516,7 +603,7 @@ async function calculateDeliveryCost() {
             totalCost,
             settings
         });
-        
+
     } catch (error) {
         showError(error.message);
     } finally {
@@ -532,57 +619,57 @@ async function calculatePickupCost() {
     const errorDiv = document.getElementById('error');
     const loadingDiv = document.getElementById('loading');
     const calculateBtn = document.getElementById('calculateBtn');
-    
+
     // UI更新
     resultDiv.style.display = 'none';
     errorDiv.style.display = 'none';
     loadingDiv.style.display = 'block';
     calculateBtn.disabled = true;
-    
+
     try {
         // 0. 設定を取得
         const settings = getSettings();
-        
+
         // 2. 配送先の住所を郵便番号から取得
         const zipcodeData = await getAddressFromZipcode(destinationZipcode);
-        
+
         // 2.5. 宮城県内かチェック
         if (zipcodeData.prefecture !== '宮城県') {
             showError('このシステムは宮城県内専用です。宮城県内の郵便番号を入力してください。');
             return;
         }
-        
+
         const destAddress = zipcodeData.address;
         const city = zipcodeData.city;
-        
+
         // 4. 最寄りのICとドラぷらURLを生成
         const destinationIC = getNearestIC(city);
         const drivePlazaURL = generateDrivePlazaURL(destinationIC);
-        
+
         // 5. 距離と時間を計算
         const { distance, duration, distanceText, durationText, tollFee } = await calculateDistanceAndTime(
-            ORIGIN_ZIPCODE, 
-            destinationZipcode, 
+            ORIGIN_ZIPCODE,
+            destinationZipcode,
             settings.useHighway
         );
-        
+
         // 各費用を計算
         const roundTripDistance = distance * 2; // 往復距離
         const oneWayDistance = distance; // 片道距離
         const roundTripDuration = duration * 2; // 往復時間
-        
+
         // 人件費 = 往復時間 × 時給 × 2人（配送と同じ）
         const laborCost = roundTripDuration * settings.hourlyWage * NUM_WORKERS;
-        
+
         // ガソリン代（スタッフ車往復 + レンタカー復路）
         const staffGasCost = (roundTripDistance / settings.fuelEfficiency) * settings.gasPrice;
         const rentalGasCost = (oneWayDistance / settings.fuelEfficiency) * settings.gasPrice;
         const gasCost = staffGasCost + rentalGasCost;
-        
+
         // 高速道路料金（配送と同じ）
         let oneWayHighwayCost = 0;
         let highwayCost = 0;
-        
+
         if (settings.useHighway) {
             if (tollFee !== null && tollFee > 0) {
                 oneWayHighwayCost = tollFee;
@@ -592,16 +679,16 @@ async function calculatePickupCost() {
                 highwayCost = oneWayHighwayCost * 3;
             }
         }
-        
+
         // 直接経費の合計
         const directCost = laborCost + gasCost + highwayCost;
-        
+
         // 利益 = 直接経費 × 利益率
         const profit = directCost * (settings.profitMargin / 100);
-        
+
         // 最終的な回収料金
         const totalCost = directCost + profit;
-        
+
         // 結果を表示
         displayResult({
             destAddress,
@@ -626,7 +713,7 @@ async function calculatePickupCost() {
             totalCost,
             settings
         });
-        
+
     } catch (error) {
         showError(error.message);
     } finally {
@@ -640,11 +727,11 @@ function displayResult(data) {
     // ルート情報
     document.getElementById('destAddress').textContent = data.destAddress;
     document.getElementById('destinationIC').textContent = `${data.destinationIC}IC（${data.city}）`;
-    
+
     // Google Maps APIからの正確な距離と時間を表示
     document.getElementById('distance').textContent = `${data.distanceText} (${data.distance.toFixed(1)} km)`;
     document.getElementById('duration').textContent = `${data.durationText} (${data.duration.toFixed(2)} 時間)`;
-    
+
     // ドラぷらリンクを設定（高速道路使用時のみ表示）
     const highwayLinkBox = document.querySelector('.highway-link-box');
     if (data.settings.useHighway) {
@@ -654,66 +741,66 @@ function displayResult(data) {
     } else {
         highwayLinkBox.style.display = 'none';
     }
-    
+
     // 直接経費
     document.getElementById('laborCost').textContent = `¥${Math.round(data.laborCost).toLocaleString()}`;
-    document.getElementById('laborFormula').textContent = 
+    document.getElementById('laborFormula').textContent =
         `└ 往復時間 × ¥${data.settings.hourlyWage.toLocaleString()}/時 × 2人`;
-    document.getElementById('laborDetail').textContent = 
+    document.getElementById('laborDetail').textContent =
         `${data.roundTripDuration.toFixed(1)}h × ¥${data.settings.hourlyWage.toLocaleString()} × 2人`;
-    
+
     // ガソリン代の表示（モードによって変更）
     if (data.settings.mode === 'pickup') {
         // 回収モード：スタッフ車 + レンタカー復路
         document.getElementById('gasCostLabel').textContent = 'ガソリン代（スタッフ車往復）：';
         document.getElementById('gasCost').textContent = `¥${Math.round(data.staffGasCost).toLocaleString()}`;
-        document.getElementById('gasFormula').textContent = 
+        document.getElementById('gasFormula').textContent =
             `└ 往復距離 ÷ ${data.settings.fuelEfficiency}km/L × ¥${data.settings.gasPrice.toLocaleString()}/L`;
-        document.getElementById('gasDetail').textContent = 
+        document.getElementById('gasDetail').textContent =
             `${data.roundTripDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
-        
+
         // レンタカー復路分を表示
         document.getElementById('rentalGasRow').style.display = 'flex';
         document.getElementById('rentalGasDetailRow').style.display = 'flex';
         document.getElementById('rentalGasCost').textContent = `¥${Math.round(data.rentalGasCost).toLocaleString()}`;
-        document.getElementById('rentalGasDetail').textContent = 
+        document.getElementById('rentalGasDetail').textContent =
             `${data.oneWayDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
     } else {
         // 配送モード：スタッフ車のみ
         document.getElementById('gasCostLabel').textContent = 'ガソリン代（往復・スタッフ車のみ）：';
         document.getElementById('gasCost').textContent = `¥${Math.round(data.gasCost).toLocaleString()}`;
-        document.getElementById('gasFormula').textContent = 
+        document.getElementById('gasFormula').textContent =
             `└ 往復距離 ÷ ${data.settings.fuelEfficiency}km/L × ¥${data.settings.gasPrice.toLocaleString()}/L`;
-        document.getElementById('gasDetail').textContent = 
+        document.getElementById('gasDetail').textContent =
             `${data.roundTripDistance.toFixed(1)}km ÷ ${data.settings.fuelEfficiency} × ¥${data.settings.gasPrice}`;
-        
+
         // レンタカー復路分を非表示
         document.getElementById('rentalGasRow').style.display = 'none';
         document.getElementById('rentalGasDetailRow').style.display = 'none';
     }
-    
+
     // 高速道路料金の表示（概算）
     if (data.settings.useHighway) {
         document.getElementById('highwayCost').textContent = `¥${Math.round(data.highwayCost).toLocaleString()} (概算)`;
-        document.getElementById('highwayDetail').textContent = 
+        document.getElementById('highwayDetail').textContent =
             `¥${Math.round(data.oneWayHighwayCost).toLocaleString()} × 3（概算: ${HIGHWAY_COST_PER_KM}円/km）`;
     } else {
         document.getElementById('highwayCost').textContent = `¥0`;
         document.getElementById('highwayDetail').textContent = '高速道路不使用';
     }
-    
+
     document.getElementById('directCost').textContent = `¥${Math.round(data.directCost).toLocaleString()}`;
-    
+
     // 利益
-    document.getElementById('profitLabel').textContent = 
+    document.getElementById('profitLabel').textContent =
         `利益（直接経費の${data.settings.profitMargin}%）：`;
     document.getElementById('profitAmount').textContent = `¥${Math.round(data.profit).toLocaleString()}`;
-    
+
     // 合計
     document.getElementById('totalCost').textContent = `¥${Math.round(data.totalCost).toLocaleString()}`;
-    document.getElementById('totalFormula').textContent = 
+    document.getElementById('totalFormula').textContent =
         `(直接経費 ¥${Math.round(data.directCost).toLocaleString()} + 利益 ¥${Math.round(data.profit).toLocaleString()})`;
-    
+
     document.getElementById('result').style.display = 'block';
 }
 
@@ -725,9 +812,13 @@ function showError(message) {
     document.getElementById('result').style.display = 'none';
 }
 
-// Enterキーで計算
+// Enterキーで計算 + 自動ハイフン入力イベント
 document.addEventListener('DOMContentLoaded', function() {
-    document.getElementById('destination').addEventListener('keypress', function(e) {
+    const destInput = document.getElementById('destination');
+
+    destInput.addEventListener('input', handleZipcodeInput);
+
+    destInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
             calculateCost();
         }
